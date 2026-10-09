@@ -1,0 +1,65 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log In | Online Shop</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card">
+            <h1>Welcome back</h1>
+            <p class="subtitle">Log in to your online shop account.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('auth.login') }}">
+                {{ form.hidden_tag() }}
+
+                <div class="form-group">
+                    {{ form.identity.label }}
+                    {{ form.identity(
+                        class_="form-control",
+                        autocomplete="username"
+                    ) }}
+
+                    {% for error in form.identity.errors %}
+                        <p class="field-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+
+                <div class="form-group">
+                    {{ form.password.label }}
+                    {{ form.password(
+                        class_="form-control",
+                        autocomplete="current-password"
+                    ) }}
+
+                    {% for error in form.password.errors %}
+                        <p class="field-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+
+                {{ form.submit(class_="submit-button") }}
+            </form>
+
+            <p class="subtitle">
+                Don't have an account?
+                <a href="{{ url_for('auth.register') }}">Register here</a>
+            </p>
+        </section>
+    </main>
+</body>
+</html>
