@@ -1,7 +1,19 @@
+
 from flask import Flask
 
 from config import Config
 from .extensions import db, migrate, login_manager
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    """Load a user from the database for Flask-Login."""
+    from .models import User
+
+    try:
+        return db.session.get(User, int(user_id))
+    except (TypeError, ValueError):
+        return None
 
 
 def create_app(config_class=Config):
@@ -12,6 +24,11 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
+    # Register the models for SQLAlchemy and Flask-Migrate.
     from . import models
+
+    # Register authentication routes.
+    from .routes.auth import auth_bp
+    app.register_blueprint(auth_bp)
 
     return app
