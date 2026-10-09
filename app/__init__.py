@@ -30,5 +30,7 @@ def create_app(config_class=Config):
     # Register authentication routes.
     from .routes.auth import auth_bp
     app.register_blueprint(auth_bp)
-
+    from .routes.products import products_bp
+    app.register_blueprint(products_bp)
+    
     return app
