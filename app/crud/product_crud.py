@@ -3,7 +3,8 @@ from sqlalchemy import func, select
 
 from app.extensions import db
 from app.models import Product, Review
-
+from app.extensions import db
+from app.models import Product
 
 def get_active_products(sort_by="newest"):
     """Return active products with average ratings and review counts."""
@@ -63,3 +64,30 @@ def get_active_product_by_id(product_id):
     )
 
     return db.session.execute(statement).one_or_none()
+
+def get_all_products():
+    """Return all products, including inactive products."""
+    statement = select(Product).order_by(Product.name.asc())
+    return db.session.scalars(statement).all()
+
+def get_product_for_admin(product_id):
+    """Find any product by ID, including inactive products."""
+    return db.session.get(Product, product_id)
+
+def create_product(product):
+    """Insert a new product into the database."""
+    db.session.add(product)
+    db.session.commit()
+    return product
+
+def increase_product_stock(product, quantity):
+    """Increase the stock of an existing product."""
+    product.stock += quantity
+    db.session.commit()
+    return product
+
+def deactivate_product(product):
+    """Remove a product from sale without deleting its history."""
+    product.is_active = False
+    db.session.commit()
+    return product

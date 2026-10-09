@@ -1,0 +1,50 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add Product | Online Shop</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card">
+            <h1>Add a product</h1>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            <form method="POST"
+                  action="{{ url_for('admin.create_product') }}">
+                {{ form.hidden_tag() }}
+
+                {% for field in [form.name, form.description, form.price, form.stock] %}
+                    <div class="form-group">
+                        {{ field.label }}
+                        {{ field(class_="form-control") }}
+
+                        {% for error in field.errors %}
+                            <p class="field-error">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+
+                {{ form.submit(class_="submit-button") }}
+            </form>
+
+            <p>
+                <a href="{{ url_for('admin.products') }}">
+                    Back to admin products
+                </a>
+            </p>
+        </section>
+    </main>
+</body>
+</html>

@@ -5,17 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Online Shop</title>
-
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='css/style.css') }}"
-    >
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<p>
-    <a href="{{ url_for('products.catalogue') }}">
-        Browse products
-    </a>
-</p>
 <body>
     <main class="registration-container">
         <section class="registration-card">
@@ -29,26 +21,37 @@
                 {% endfor %}
             {% endwith %}
 
-            {% if current_user.is_authenticated %}
-                <p>
-                    Welcome, <strong>{{ current_user.username }}</strong>!
-                </p>
+            <p>
+                <a href="{{ url_for('products.catalogue') }}">
+                    Browse products
+                </a>
+            </p>
 
+            {% if current_user.is_authenticated %}
+                <h2>Welcome, {{ current_user.username }}!</h2>
                 <p>You are logged in.</p>
+
+                {% if current_user.is_admin %}
+                    <p>
+                        <a href="{{ url_for('admin.products') }}">
+                            Admin product management
+                        </a>
+                    </p>
+                {% endif %}
 
                 <form method="POST" action="{{ url_for('auth.logout') }}">
                     {{ logout_form.hidden_tag() }}
                     {{ logout_form.submit(class_="submit-button") }}
                 </form>
             {% else %}
-                <p>Log in or register to start shopping.</p>
-
+                <p>Log in or create an account to start shopping.</p>
                 <p>
                     <a href="{{ url_for('auth.login') }}">Log in</a>
                 </p>
-
                 <p>
-                    <a href="{{ url_for('auth.register') }}">Create an account</a>
+                    <a href="{{ url_for('auth.register') }}">
+                        Create an account
+                    </a>
                 </p>
             {% endif %}
         </section>
