@@ -1,0 +1,79 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Products | Online Shop</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card catalogue-card">
+            <h1>Admin Product Management</h1>
+
+            <p>
+                <a href="{{ url_for('auth.home') }}">Home</a> |
+                <a href="{{ url_for('products.catalogue') }}">Public catalogue</a>
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            <p>
+                <a href="{{ url_for('admin.create_product') }}">
+                    Add a new product
+                </a>
+            </p>
+
+            {% if products %}
+                {% for product in products %}
+                    <article class="product-item">
+                        <h2>{{ product.name }}</h2>
+                        <p>{{ product.description or "No description." }}</p>
+                        <p>Price: €{{ "%.2f"|format(product.price) }}</p>
+                        <p>Stock: {{ product.stock }}</p>
+
+                        <p>
+                            Status:
+                            {% if product.is_active %}
+                                Active
+                            {% else %}
+                                Inactive
+                            {% endif %}
+                        </p>
+
+                        <p>
+                            <a href="{{ url_for(
+                                'admin.restock_product',
+                                product_id=product.id
+                            ) }}">
+                                Add stock
+                            </a>
+                        </p>
+
+                        {% if product.is_active %}
+                            <form method="POST"
+                                  action="{{ url_for(
+                                      'admin.deactivate_product',
+                                      product_id=product.id
+                                  ) }}">
+                                {{ action_form.hidden_tag() }}
+                                {{ action_form.submit(class_="submit-button") }}
+                            </form>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            {% else %}
+                <p>No products have been created yet.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

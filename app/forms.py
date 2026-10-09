@@ -1,5 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
+from wtforms import DecimalField, IntegerField, TextAreaField
+from wtforms.validators import NumberRange, Optional
 from wtforms.validators import (
     DataRequired,
     Email,
@@ -93,3 +95,64 @@ class LoginForm(FlaskForm):
 
 class LogoutForm(FlaskForm):
     submit = SubmitField("Log out")
+
+class ProductForm(FlaskForm):
+    name = StringField(
+        "Product name",
+        validators=[
+            DataRequired(message="Product name is required."),
+            Length(min=2, max=150),
+        ],
+    )
+
+    description = TextAreaField(
+        "Description",
+        validators=[
+            Optional(),
+            Length(max=5000),
+        ],
+    )
+
+    price = DecimalField(
+        "Price (€)",
+        places=2,
+        validators=[
+            DataRequired(message="Price is required."),
+            NumberRange(
+                min=0.01,
+                message="Price must be greater than zero.",
+            ),
+        ],
+    )
+
+    stock = IntegerField(
+        "Initial stock quantity",
+        validators=[
+            DataRequired(message="Stock quantity is required."),
+            NumberRange(
+                min=0,
+                message="Stock cannot be negative.",
+            ),
+        ],
+    )
+
+    submit = SubmitField("Add product")
+
+
+class RestockForm(FlaskForm):
+    quantity = IntegerField(
+        "Quantity to add",
+        validators=[
+            DataRequired(message="Enter a quantity."),
+            NumberRange(
+                min=1,
+                message="You must add at least one item.",
+            ),
+        ],
+    )
+
+    submit = SubmitField("Add stock")
+
+
+class ProductActionForm(FlaskForm):
+    submit = SubmitField("Remove from sale")
