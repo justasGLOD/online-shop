@@ -156,3 +156,21 @@ class RestockForm(FlaskForm):
 
 class ProductActionForm(FlaskForm):
     submit = SubmitField("Remove from sale")
+
+class CartQuantityForm(FlaskForm):
+    quantity = IntegerField(
+        "Quantity",
+        validators=[
+            DataRequired(message="Enter a quantity."),
+            NumberRange(
+                min=1,
+                message="Quantity must be at least 1.",
+            ),
+        ],
+    )
+
+    submit = SubmitField("Add to cart")
+
+
+class CartActionForm(FlaskForm):
+    submit = SubmitField("Remove")

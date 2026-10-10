@@ -1,0 +1,136 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart | Online Shop</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card catalogue-card">
+            <h1>Your Shopping Cart</h1>
+
+            <p>
+                <a href="{{ url_for('auth.home') }}">Home</a> |
+                <a href="{{ url_for('products.catalogue') }}">Continue shopping</a>
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            {% if cart.items %}
+                {% for item in cart.items %}
+                    <article class="product-item">
+                        {% if item.product %}
+                            <h2>{{ item.product.name }}</h2>
+
+                            <p>
+                                Price per item:
+                                €{{ "%.2f"|format(item.product.price) }}
+                            </p>
+
+                            <p>
+                                Quantity: {{ item.quantity }}
+                            </p>
+
+                            <p>
+                                Subtotal:
+                                €{{ "%.2f"|format(
+                                    item.product.price * item.quantity
+                                ) }}
+                            </p>
+
+                            {% if item.product.is_active and item.product.stock > 0 %}
+                                <form
+                                    method="POST"
+                                    action="{{ url_for(
+                                        'cart.update',
+                                        item_id=item.id
+                                    ) }}"
+                                >
+                                    {{ quantity_form.hidden_tag() }}
+
+                                    <div class="form-group">
+                                        <label for="quantity-{{ item.id }}">
+                                            Change quantity
+                                        </label>
+
+                                        <input
+                                            class="form-control"
+                                            type="number"
+                                            id="quantity-{{ item.id }}"
+                                            name="quantity"
+                                            min="1"
+                                            max="{{ item.product.stock }}"
+                                            value="{{ item.quantity }}"
+                                            required
+                                        >
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        class="submit-button"
+                                    >
+                                        Update quantity
+                                    </button>
+                                </form>
+                            {% else %}
+                                <p>
+                                    This product is currently unavailable.
+                                    Remove it from your cart to continue.
+                                </p>
+                            {% endif %}
+                        {% else %}
+                            <p>This product is no longer available.</p>
+                        {% endif %}
+
+                        <form
+                            method="POST"
+                            action="{{ url_for(
+                                'cart.remove',
+                                item_id=item.id
+                            ) }}"
+                        >
+                            {{ action_form.hidden_tag() }}
+
+                            <button
+                                type="submit"
+                                class="submit-button"
+                            >
+                                Remove item
+                            </button>
+                        </form>
+                    </article>
+                {% endfor %}
+
+                <hr>
+
+                <h2>
+                    Cart total: €{{ "%.2f"|format(total) }}
+                </h2>
+
+                <p>
+                    Stock and prices will be checked again when you purchase.
+                </p>
+            {% else %}
+                <p>Your shopping cart is empty.</p>
+
+                <a href="{{ url_for('products.catalogue') }}">
+                    Browse products
+                </a>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

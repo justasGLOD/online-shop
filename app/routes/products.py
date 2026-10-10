@@ -1,6 +1,6 @@
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
-
+from app.forms import CartQuantityForm
 from app.services.product_service import (
     ALLOWED_SORT_OPTIONS,
     ProductCatalogueError,
@@ -65,4 +65,5 @@ def detail(product_id):
         product=product,
         average_rating=average_rating,
         review_count=review_count,
+        cart_form=CartQuantityForm(),
     )
