@@ -39,6 +39,12 @@
                     </p>
                 {% endif %}
 
+                <p>
+                    <a href="{{ url_for('cart.view_cart') }}">
+                        View shopping cart
+                    </a>
+                </p>
+
                 <form method="POST" action="{{ url_for('auth.logout') }}">
                     {{ logout_form.hidden_tag() }}
                     {{ logout_form.submit(class_="submit-button") }}

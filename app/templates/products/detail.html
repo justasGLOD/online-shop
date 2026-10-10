@@ -43,3 +43,45 @@
     </main>
 </body>
 </html>
+
+
+{% if current_user.is_authenticated %}
+    {% if product.stock > 0 %}
+        <form
+            method="POST"
+            action="{{ url_for('cart.add', product_id=product.id) }}"
+        >
+            {{ cart_form.hidden_tag() }}
+
+            <div class="form-group">
+                {{ cart_form.quantity.label }}
+                {{ cart_form.quantity(
+                    class_="form-control",
+                    min="1",
+                    max=product.stock,
+                    value=1
+                ) }}
+
+                {% for error in cart_form.quantity.errors %}
+                    <p class="field-error">{{ error }}</p>
+                {% endfor %}
+            </div>
+
+            {{ cart_form.submit(class_="submit-button") }}
+        </form>
+    {% else %}
+        <p>This product is currently out of stock.</p>
+    {% endif %}
+{% else %}
+    <p>
+        <a href="{{ url_for('auth.login') }}">
+            Log in to add this product to your cart
+        </a>
+    </p>
+{% endif %}
+
+<p>
+    <a href="{{ url_for('cart.view_cart') }}">
+        View shopping cart
+    </a>
+</p>
