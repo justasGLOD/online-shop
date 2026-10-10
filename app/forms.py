@@ -171,6 +171,8 @@ class CartQuantityForm(FlaskForm):
 
     submit = SubmitField("Add to cart")
 
-
 class CartActionForm(FlaskForm):
     submit = SubmitField("Remove")
+
+class CheckoutForm(FlaskForm):
+    submit = SubmitField("Confirm purchase")

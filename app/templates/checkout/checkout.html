@@ -1,0 +1,83 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout | Online Shop</title>
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card catalogue-card">
+            <h1>Checkout</h1>
+
+            <p>
+                <a href="{{ url_for('cart.view_cart') }}">
+                    Back to shopping cart
+                </a>
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            <h2>Order summary</h2>
+
+            {% for item in cart.items %}
+                <article class="product-item">
+                    {% if item.product %}
+                        <h3>{{ item.product.name }}</h3>
+                        <p>Quantity: {{ item.quantity }}</p>
+                        <p>
+                            Unit price:
+                            €{{ "%.2f"|format(item.product.price) }}
+                        </p>
+                        <p>
+                            Subtotal:
+                            €{{ "%.2f"|format(
+                                item.product.price * item.quantity
+                            ) }}
+                        </p>
+                    {% else %}
+                        <p>A product in your cart is unavailable.</p>
+                    {% endif %}
+                </article>
+            {% endfor %}
+
+            <hr>
+
+            <h2>Order total: €{{ "%.2f"|format(total) }}</h2>
+            <p>Your current balance: €{{ "%.2f"|format(balance) }}</p>
+
+            {% if balance < total %}
+                <p class="message error">
+                    Your balance is insufficient to complete this purchase.
+                </p>
+            {% endif %}
+
+            <p>
+                Product availability, prices, stock and balance
+                will be checked again when you confirm the purchase.
+            </p>
+
+            <form method="POST" action="{{ url_for('checkout.checkout_page') }}">
+                {{ form.hidden_tag() }}
+
+                {% for error in form.submit.errors %}
+                    <p class="field-error">{{ error }}</p>
+                {% endfor %}
+
+                {{ form.submit(class_="submit-button") }}
+            </form>
+        </section>
+    </main>
+</body>
+</html>
