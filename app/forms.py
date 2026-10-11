@@ -176,3 +176,13 @@ class CartActionForm(FlaskForm):
 
 class CheckoutForm(FlaskForm):
     submit = SubmitField("Confirm purchase")
+
+class BalanceTopUpForm(FlaskForm):
+    amount = StringField(
+        "Top-up amount (€)",
+        validators=[
+            DataRequired(message="Please enter an amount."),
+        ],
+    )
+
+    submit = SubmitField("Top up balance")

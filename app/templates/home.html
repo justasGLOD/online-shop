@@ -44,6 +44,12 @@
                         View shopping cart
                     </a>
                 </p>
+                
+                <p>
+                    <a href="{{ url_for('balance.overview') }}">
+                        My balance and transactions
+                    </a>
+                </p>
 
                 <form method="POST" action="{{ url_for('auth.logout') }}">
                     {{ logout_form.hidden_tag() }}
