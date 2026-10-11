@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Order History</title>
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+<body>
+    <main>
+        <h1>My Order History</h1>
+
+        <p>
+            <a href="{{ url_for('auth.home') }}">Home</a> |
+            <a href="{{ url_for('products.catalogue') }}">Products</a> |
+            <a href="{{ url_for('cart.view_cart') }}">My Cart</a>
+        </p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <p class="{{ category }}">{{ message }}</p>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if orders %}
+            {% for order in orders %}
+                <section class="order-card">
+                    <h2>Order #{{ order.id }}</h2>
+
+                    <p>
+                        <strong>Date:</strong>
+                        {{ order.created_at.strftime('%Y-%m-%d %H:%M') }}
+                    </p>
+
+                    <p>
+                        <strong>Status:</strong>
+                        {{ order.status | replace('_', ' ') | title }}
+                    </p>
+
+                    <h3>Products</h3>
+
+                    {% if order.items %}
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Quantity</th>
+                                    <th>Price per item</th>
+                                    <th>Line total</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for item in order.items %}
+                                    <tr>
+                                        <td>
+                                            {% if item.product %}
+                                                {{ item.product.name }}
+                                            {% else %}
+                                                Product no longer available
+                                            {% endif %}
+                                        </td>
+
+                                        <td>{{ item.quantity }}</td>
+
+                                        <td>
+                                            {{ "%.2f"|format(item.price_at_purchase) }}
+                                        </td>
+
+                                        <td>
+                                            {{ "%.2f"|format(
+                                                item.price_at_purchase * item.quantity
+                                            ) }}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p>No product details are available for this order.</p>
+                    {% endif %}
+
+                    <p>
+                        <strong>Order total:</strong>
+                        {{ "%.2f"|format(order.total_price) }}
+                    </p>
+                </section>
+
+                <hr>
+            {% endfor %}
+        {% else %}
+            <p>You haven't placed any orders yet.</p>
+            <p>
+                <a href="{{ url_for('products.catalogue') }}">
+                    Browse products
+                </a>
+            </p>
+        {% endif %}
+    </main>
+</body>
+</html>

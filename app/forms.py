@@ -186,3 +186,30 @@ class BalanceTopUpForm(FlaskForm):
     )
 
     submit = SubmitField("Top up balance")
+
+class ReviewForm(FlaskForm):
+    rating = IntegerField(
+        "Rating (1–5)",
+        validators=[
+            DataRequired(message="Please select a rating."),
+            NumberRange(
+                min=1,
+                max=5,
+                message="Rating must be between 1 and 5.",
+            ),
+        ],
+    )
+
+    comment = TextAreaField(
+        "Your review",
+        validators=[
+            DataRequired(message="Please write a review."),
+            Length(
+                min=3,
+                max=2000,
+                message="Your review must contain between 3 and 2000 characters.",
+            ),
+        ],
+    )
+
+    submit = SubmitField("Submit review")
