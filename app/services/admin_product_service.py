@@ -10,6 +10,7 @@ from app.crud.product_crud import (
     get_all_products,
     get_product_for_admin,
     increase_product_stock,
+    update_product_details,
 )
 from app.extensions import db
 from app.models import Product
@@ -38,6 +39,62 @@ def list_admin_products():
         )
         raise AdminProductError(
             "Products could not be loaded. Please try again."
+        ) from error
+
+def update_admin_product(product_id, name, description, price):
+    """Validate and update an existing product without changing stock."""
+
+    # Find the existing product first.
+    product = get_admin_product_details(product_id)
+
+    normalized_name = (name or "").strip()
+    normalized_description = (description or "").strip()
+
+    if len(normalized_name) < 2 or len(normalized_name) > 150:
+        raise AdminProductError(
+            "Product name must contain 2–150 characters."
+        )
+
+    if len(normalized_description) > 5000:
+        raise AdminProductError(
+            "Description cannot exceed 5000 characters."
+        )
+
+    try:
+        normalized_price = Decimal(str(price))
+    except (InvalidOperation, TypeError, ValueError) as error:
+        raise AdminProductError(
+            "Enter a valid product price."
+        ) from error
+
+    if not normalized_price.is_finite():
+        raise AdminProductError("Enter a valid product price.")
+
+    if normalized_price < CENT or normalized_price > MAX_PRICE:
+        raise AdminProductError(
+            "Price must be between €0.01 and €99,999,999.99."
+        )
+
+    if normalized_price != normalized_price.quantize(CENT):
+        raise AdminProductError(
+            "Price can have no more than two decimal places."
+        )
+
+    try:
+        return update_product_details(
+            product=product,
+            name=normalized_name,
+            description=normalized_description or None,
+            price=normalized_price,
+        )
+
+    except SQLAlchemyError as error:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Failed to update product %s.", product_id
+        )
+        raise AdminProductError(
+            "The product could not be updated. Please try again."
         ) from error
 
 def create_admin_product(name, description, price, stock):

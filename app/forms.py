@@ -138,6 +138,36 @@ class ProductForm(FlaskForm):
 
     submit = SubmitField("Add product")
 
+class ProductEditForm(FlaskForm):
+    name = StringField(
+        "Product name",
+        validators=[
+            DataRequired(message="Product name is required."),
+            Length(min=2, max=150),
+        ],
+    )
+
+    description = TextAreaField(
+        "Description",
+        validators=[
+            Optional(),
+            Length(max=5000),
+        ],
+    )
+
+    price = DecimalField(
+        "Price (€)",
+        places=2,
+        validators=[
+            DataRequired(message="Price is required."),
+            NumberRange(
+                min=0.01,
+                message="Price must be greater than zero.",
+            ),
+        ],
+    )
+
+    submit = SubmitField("Save changes")
 
 class RestockForm(FlaskForm):
     quantity = IntegerField(

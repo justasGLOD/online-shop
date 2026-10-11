@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Product</title>
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card">
+            <h1>Edit Product</h1>
+
+            <p>
+                Editing product #{{ product.id }}:
+                <strong>{{ product.name }}</strong>
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            <form method="POST">
+                {{ form.hidden_tag() }}
+
+                <div class="form-group">
+                    {{ form.name.label }}
+                    {{ form.name(class_="form-control") }}
+
+                    {% for error in form.name.errors %}
+                        <div class="message error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                <div class="form-group">
+                    {{ form.description.label }}
+                    {{ form.description(class_="form-control", rows="5") }}
+
+                    {% for error in form.description.errors %}
+                        <div class="message error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                <div class="form-group">
+                    {{ form.price.label }}
+                    {{ form.price(class_="form-control", step="0.01", min="0.01") }}
+
+                    {% for error in form.price.errors %}
+                        <div class="message error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+
+                <p>
+                    <strong>Current stock:</strong>
+                    {{ product.stock }}
+                </p>
+
+                <p>
+                    <strong>Status:</strong>
+                    {% if product.is_active %}
+                        Active
+                    {% else %}
+                        Inactive
+                    {% endif %}
+                </p>
+
+                <p>
+                    Stock and status are not changed by this form.
+                </p>
+
+                {{ form.submit(class_="submit-button") }}
+            </form>
+
+            <p>
+                <a href="{{ url_for('admin.products') }}">
+                    Back to product management
+                </a>
+            </p>
+        </section>
+    </main>
+</body>
+</html>

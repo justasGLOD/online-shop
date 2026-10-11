@@ -14,6 +14,7 @@ from flask_login import current_user, login_required
 
 from app.forms import (
     ProductActionForm,
+    ProductEditForm,
     ProductForm,
     RestockForm,
 )
@@ -25,6 +26,7 @@ from app.services.admin_product_service import (
     get_admin_product_details,
     list_admin_products,
     restock_admin_product,
+    update_admin_product,
 )
 
 
@@ -104,6 +106,59 @@ def create_product():
         form=form,
     )
 
+@admin_bp.route(
+    "/products/<int:product_id>/edit",
+    methods=["GET", "POST"],
+)
+@admin_required
+def edit_product(product_id):
+    """Edit product details without changing stock or active status."""
+
+    try:
+        product = get_admin_product_details(product_id)
+
+    except AdminProductNotFoundError:
+        abort(404)
+
+    except AdminProductError as error:
+        flash(str(error), "error")
+        return redirect(url_for("admin.products"))
+
+    form = ProductEditForm(obj=product)
+
+    if form.validate_on_submit():
+        try:
+            update_admin_product(
+                product_id=product.id,
+                name=form.name.data,
+                description=form.description.data,
+                price=form.price.data,
+            )
+
+            flash("Product updated successfully.", "success")
+            return redirect(url_for("admin.products"))
+
+        except AdminProductNotFoundError:
+            abort(404)
+
+        except AdminProductError as error:
+            flash(str(error), "error")
+
+        except Exception:
+            current_app.logger.exception(
+                "Unexpected error while editing product %s.",
+                product_id,
+            )
+            flash(
+                "The product could not be updated. Please try again.",
+                "error",
+            )
+
+    return render_template(
+        "admin/product_edit_form.html",
+        product=product,
+        form=form,
+    )
 
 @admin_bp.route(
     "/products/<int:product_id>/restock",
