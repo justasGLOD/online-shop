@@ -1,0 +1,120 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Balance | Online Shop</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card catalogue-card">
+            <h1>My Balance</h1>
+
+            <p>
+                <a href="{{ url_for('auth.home') }}">Home</a> |
+                <a href="{{ url_for('products.catalogue') }}">
+                    Browse products
+                </a>
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            <h2>
+                Current balance: €{{ "%.2f"|format(balance) }}
+            </h2>
+
+            <hr>
+
+            <h2>Top up your balance</h2>
+
+            <form
+                method="POST"
+                action="{{ url_for('balance.top_up') }}"
+            >
+                {{ form.hidden_tag() }}
+
+                <div class="form-group">
+                    {{ form.amount.label }}
+
+                    {{ form.amount(
+                        class_="form-control",
+                        type="number",
+                        min="0.01",
+                        step="0.01",
+                        placeholder="e.g. 25.50",
+                        required=true
+                    ) }}
+
+                    {% for error in form.amount.errors %}
+                        <p class="field-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+
+                {{ form.submit(class_="submit-button") }}
+            </form>
+
+            <hr>
+
+            <h2>Transaction history</h2>
+
+            {% if transactions %}
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for transaction in transactions %}
+                                <tr>
+                                    <td>
+                                        {{ transaction.created_at.strftime(
+                                            "%Y-%m-%d %H:%M"
+                                        ) }}
+                                    </td>
+
+                                    <td>
+                                        {{ transaction.transaction_type
+                                            | replace("_", " ")
+                                            | title }}
+                                    </td>
+
+                                    <td>
+                                        {% if transaction.amount > 0 %}
+                                            +€{{ "%.2f"|format(
+                                                transaction.amount
+                                            ) }}
+                                        {% else %}
+                                            -€{{ "%.2f"|format(
+                                                transaction.amount|abs
+                                            ) }}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p>No balance transactions yet.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>
