@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>{{ product.name }} | Online Shop</title>
 
     <link
@@ -16,12 +17,19 @@
         <section class="registration-card">
             <h1>{{ product.name }}</h1>
 
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
             <p>
                 {{ product.description or "No description available." }}
             </p>
 
             <h2>€{{ "%.2f"|format(product.price) }}</h2>
-
             <p>Available stock: {{ product.stock }}</p>
 
             <p>
@@ -34,6 +42,122 @@
                 {% endif %}
             </p>
 
+            <hr>
+
+            <h2>Add to cart</h2>
+
+            {% if current_user.is_authenticated %}
+                {% if product.stock > 0 %}
+                    <form
+                        method="POST"
+                        action="{{ url_for('cart.add', product_id=product.id) }}"
+                    >
+                        {{ cart_form.hidden_tag() }}
+
+                        <div class="form-group">
+                            {{ cart_form.quantity.label }}
+                            {{ cart_form.quantity(
+                                class_="form-control",
+                                min="1",
+                                max=product.stock,
+                                value=1
+                            ) }}
+
+                            {% for error in cart_form.quantity.errors %}
+                                <p class="field-error">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+
+                        {{ cart_form.submit(class_="submit-button") }}
+                    </form>
+                {% else %}
+                    <p>This product is currently out of stock.</p>
+                {% endif %}
+            {% else %}
+                <p>
+                    <a href="{{ url_for('auth.login') }}">
+                        Log in to add this product to your cart.
+                    </a>
+                </p>
+            {% endif %}
+
+            <p>
+                <a href="{{ url_for('cart.view_cart') }}">
+                    View shopping cart
+                </a>
+            </p>
+
+            <hr>
+
+            <h2>Customer reviews</h2>
+
+            {% if reviews %}
+                {% for review in reviews %}
+                    <article class="product-item">
+                        <h3>{{ review.user.username }}</h3>
+
+                        <p>
+                            Rating: {{ review.rating }}/5
+                            {% for _ in range(review.rating) %}★{% endfor %}
+                        </p>
+
+                        <p>{{ review.comment }}</p>
+
+                        <small>
+                            {{ review.created_at.strftime("%Y-%m-%d %H:%M") }}
+                        </small>
+                    </article>
+                {% endfor %}
+            {% else %}
+                <p>No reviews yet. Be the first to review this product after purchasing it.</p>
+            {% endif %}
+
+            {% if current_user.is_authenticated %}
+                {% if existing_review %}
+                    <p>You have already reviewed this product.</p>
+                {% elif can_review %}
+                    <h2>Write a review</h2>
+
+                    <form
+                        method="POST"
+                        action="{{ url_for(
+                            'reviews.submit_review',
+                            product_id=product.id
+                        ) }}"
+                    >
+                        {{ review_form.hidden_tag() }}
+
+                        <div class="form-group">
+                            {{ review_form.rating.label }}
+                            {{ review_form.rating(class_="form-control", min="1", max="5") }}
+
+                            {% for error in review_form.rating.errors %}
+                                <p class="field-error">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+
+                        <div class="form-group">
+                            {{ review_form.comment.label }}
+                            {{ review_form.comment(class_="form-control", rows="4") }}
+
+                            {% for error in review_form.comment.errors %}
+                                <p class="field-error">{{ error }}</p>
+                            {% endfor %}
+                        </div>
+
+                        {{ review_form.submit(class_="submit-button") }}
+                    </form>
+                {% else %}
+                    <p>You can leave a review after purchasing this product.</p>
+                {% endif %}
+            {% else %}
+                <p>
+                    <a href="{{ url_for('auth.login') }}">
+                        Log in to review this product after purchasing it.
+                    </a>
+                </p>
+            {% endif %}
+
             <p>
                 <a href="{{ url_for('products.catalogue') }}">
                     Back to catalogue
@@ -43,45 +167,3 @@
     </main>
 </body>
 </html>
-
-
-{% if current_user.is_authenticated %}
-    {% if product.stock > 0 %}
-        <form
-            method="POST"
-            action="{{ url_for('cart.add', product_id=product.id) }}"
-        >
-            {{ cart_form.hidden_tag() }}
-
-            <div class="form-group">
-                {{ cart_form.quantity.label }}
-                {{ cart_form.quantity(
-                    class_="form-control",
-                    min="1",
-                    max=product.stock,
-                    value=1
-                ) }}
-
-                {% for error in cart_form.quantity.errors %}
-                    <p class="field-error">{{ error }}</p>
-                {% endfor %}
-            </div>
-
-            {{ cart_form.submit(class_="submit-button") }}
-        </form>
-    {% else %}
-        <p>This product is currently out of stock.</p>
-    {% endif %}
-{% else %}
-    <p>
-        <a href="{{ url_for('auth.login') }}">
-            Log in to add this product to your cart
-        </a>
-    </p>
-{% endif %}
-
-<p>
-    <a href="{{ url_for('cart.view_cart') }}">
-        View shopping cart
-    </a>
-</p>

@@ -32,6 +32,8 @@ def create_app(config_class=Config):
     from .routes.cart import cart_bp
     from .routes.checkout import checkout_bp
     from .routes.balance import balance_bp
+    from .routes.reviews import reviews_bp
+    from .routes.orders import orders_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(products_bp)
@@ -39,5 +41,7 @@ def create_app(config_class=Config):
     app.register_blueprint(cart_bp)
     app.register_blueprint(checkout_bp)
     app.register_blueprint(balance_bp)
+    app.register_blueprint(reviews_bp)
+    app.register_blueprint(orders_bp)
     
     return app
