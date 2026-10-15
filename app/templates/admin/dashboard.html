@@ -1,0 +1,64 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Online Shop</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card catalogue-card">
+            <h1>Admin Dashboard</h1>
+            <p>Overview of your online shop.</p>
+
+            <p>
+                <a href="{{ url_for('auth.home') }}">Home</a> |
+                <a href="{{ url_for('admin.products') }}">Manage products</a> |
+                <a href="{{ url_for('admin.users') }}">Manage customers</a>
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            {% if stats is not none %}
+                <h2>Products</h2>
+                <article class="product-item">
+                    <p>Total products: <strong>{{ stats.total_products }}</strong></p>
+                    <p>Active products: <strong>{{ stats.active_products }}</strong></p>
+                    <p>Inactive products: <strong>{{ stats.inactive_products }}</strong></p>
+                </article>
+
+                <h2>Customers and accounts</h2>
+                <article class="product-item">
+                    <p>Total registered users: <strong>{{ stats.total_users }}</strong></p>
+                    <p>Active accounts: <strong>{{ stats.active_users }}</strong></p>
+                    <p>Inactive accounts: <strong>{{ stats.inactive_users }}</strong></p>
+                </article>
+
+                <h2>Orders and revenue</h2>
+                <article class="product-item">
+                    <p>Total orders: <strong>{{ stats.total_orders }}</strong></p>
+                    <p>Completed orders: <strong>{{ stats.completed_orders }}</strong></p>
+                    <p>
+                        Completed-order revenue:
+                        <strong>€{{ "%.2f"|format(stats.total_revenue) }}</strong>
+                    </p>
+                </article>
+            {% else %}
+                <p>
+                    Dashboard statistics are temporarily unavailable.
+                    Please try again later.
+                </p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>
