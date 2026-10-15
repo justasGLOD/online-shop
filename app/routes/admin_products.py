@@ -1,30 +1,12 @@
-
 from functools import wraps
-
-from flask import (
-    Blueprint, abort, current_app, flash,
-    redirect, render_template, url_for,
-)
+from flask import (Blueprint, abort, current_app, flash, redirect, render_template, url_for,)
 from flask_login import current_user, login_required
-
-from app.forms import (
-    ProductActionForm, ProductEditForm, ProductForm,
-    RestockForm, UserActionForm,
-)
-from app.services.admin_product_service import (
-    AdminProductError, AdminProductNotFoundError,
-    create_admin_product, deactivate_admin_product,
-    get_admin_product_details, list_admin_products,
-    restock_admin_product, update_admin_product,
-)
-from app.services.admin_user_service import (
-    AdminUserError, AdminUserNotFoundError,
-    deactivate_admin_user, list_admin_users,
-)
-
+from app.forms import (ProductActionForm, ProductEditForm, ProductForm, RestockForm, UserActionForm,)
+from app.services.admin_product_service import (AdminProductError, AdminProductNotFoundError, create_admin_product, deactivate_admin_product, get_admin_product_details, list_admin_products, restock_admin_product, update_admin_product,)
+from app.services.admin_user_service import (AdminUserError, AdminUserNotFoundError, deactivate_admin_user, list_admin_users,)
+from app.services.admin_dashboard_service import (AdminDashboardError, get_admin_dashboard_data,)
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
-
 
 def admin_required(view):
     """Require an authenticated administrator."""
@@ -36,6 +18,27 @@ def admin_required(view):
         return view(*args, **kwargs)
     return wrapped
 
+@admin_bp.route("/dashboard")
+@admin_required
+def dashboard():
+    """Display store statistics for administrators."""
+    try:
+        stats = get_admin_dashboard_data()
+
+    except AdminDashboardError as error:
+        current_app.logger.warning(
+            "Unable to load admin dashboard: %s", error
+        )
+        flash(str(error), "error")
+        return render_template(
+            "admin/dashboard.html",
+            stats=None,
+        ), 503
+
+    return render_template(
+        "admin/dashboard.html",
+        stats=stats,
+    )
 
 @admin_bp.route("/products")
 @admin_required
@@ -57,7 +60,6 @@ def products():
         products=products_list,
         action_form=ProductActionForm(),
     )
-
 
 @admin_bp.route("/products/<int:product_id>")
 @admin_required
@@ -81,7 +83,6 @@ def product_detail(product_id):
         return redirect(url_for("admin.products"))
 
     return render_template("admin/product_detail.html", product=product)
-
 
 @admin_bp.route("/users")
 @admin_required
