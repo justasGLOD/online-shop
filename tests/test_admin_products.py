@@ -418,3 +418,126 @@ def test_editing_inactive_product_keeps_it_inactive(
         assert product.price == Decimal("21.50")
         assert product.stock == 5
         assert product.is_active is False
+
+
+# -----------------------------------------
+# KAN-15: ADMIN PRODUCT DETAIL TESTS
+# -----------------------------------------
+
+def test_admin_can_view_product_details(
+    client,
+    accounts,
+    sample_product,
+):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.get(
+        f"/admin/products/{sample_product}"
+    )
+
+    assert response.status_code == 200
+    assert b"Product Details" in response.data
+    assert b"Test Desk Lamp" in response.data
+    assert b"19.99" in response.data
+    assert b"5" in response.data
+    assert b"Active" in response.data
+    assert b"Edit product details" in response.data
+    assert b"Add stock" in response.data
+
+
+def test_admin_product_details_requires_login(
+    client,
+    sample_product,
+):
+    response = client.get(
+        f"/admin/products/{sample_product}"
+    )
+
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+
+def test_regular_user_cannot_view_product_details(
+    client,
+    accounts,
+    sample_product,
+):
+    login_as(
+        client,
+        accounts["regular_username"],
+        accounts["regular_password"],
+    )
+
+    response = client.get(
+        f"/admin/products/{sample_product}"
+    )
+
+    assert response.status_code == 403
+
+
+def test_missing_admin_product_details_returns_404(
+    client,
+    accounts,
+):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.get("/admin/products/999999")
+
+    assert response.status_code == 404
+
+
+def test_admin_can_view_inactive_product_details(
+    client,
+    app,
+    accounts,
+    sample_product,
+):
+    with app.app_context():
+        from app.models import Product
+
+        product = db.session.get(Product, sample_product)
+        product.is_active = False
+        db.session.commit()
+
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.get(
+        f"/admin/products/{sample_product}"
+    )
+
+    assert response.status_code == 200
+    assert b"Test Desk Lamp" in response.data
+    assert b"Inactive" in response.data
+
+
+def test_admin_product_list_links_to_details(
+    client,
+    accounts,
+    sample_product,
+):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.get("/admin/products")
+
+    assert response.status_code == 200
+    assert b"View details" in response.data
+    assert (
+        f"/admin/products/{sample_product}".encode()
+        in response.data
+    )
