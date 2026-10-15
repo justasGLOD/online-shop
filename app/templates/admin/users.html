@@ -1,0 +1,91 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Management | Online Shop</title>
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card catalogue-card">
+            <h1>Customer Management</h1>
+
+            <p>
+                <a href="{{ url_for('auth.home') }}">Home</a> |
+                <a href="{{ url_for('admin.products') }}">Admin products</a>
+            </p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endwith %}
+
+            {% if users %}
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Balance</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                                <tr>
+                                    <td>{{ user.id }}</td>
+                                    <td>{{ user.username }}</td>
+                                    <td>{{ user.email }}</td>
+                                    <td>
+                                        {{ "Admin" if user.is_admin else "Customer" }}
+                                    </td>
+                                    <td>
+                                        €{{ "%.2f"|format(user.balance) }}
+                                    </td>
+                                    <td>
+                                        {% if user.is_active %}
+                                            Active
+                                        {% else %}
+                                            Inactive
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if user.is_active
+                                              and not user.is_admin
+                                              and user.id != current_user.id %}
+                                            <form method="POST"
+                                                  action="{{ url_for(
+                                                      'admin.deactivate_customer',
+                                                      user_id=user.id
+                                                  ) }}">
+                                                {{ action_form.hidden_tag() }}
+                                                {{ action_form.submit(
+                                                    class_="submit-button"
+                                                ) }}
+                                            </form>
+                                        {% else %}
+                                            <span>—</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p>No registered users found.</p>
+            {% endif %}
+        </section>
+    </main>
+</body>
+</html>

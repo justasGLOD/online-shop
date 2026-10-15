@@ -187,6 +187,8 @@ class RestockForm(FlaskForm):
 class ProductActionForm(FlaskForm):
     submit = SubmitField("Remove from sale")
 
+class UserActionForm(FlaskForm):
+    submit = SubmitField("Deactivate account")
 class CartQuantityForm(FlaskForm):
     quantity = IntegerField(
         "Quantity",
