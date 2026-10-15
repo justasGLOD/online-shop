@@ -70,6 +70,41 @@ def products():
         action_form=ProductActionForm(),
     )
 
+@admin_bp.route("/products/<int:product_id>", methods=["GET"])
+@admin_required
+def product_detail(product_id):
+    """Display the details of one product for administrators."""
+
+    try:
+        product = get_admin_product_details(product_id)
+
+    except AdminProductNotFoundError:
+        abort(404)
+
+    except AdminProductError as error:
+        current_app.logger.warning(
+            "Unable to load admin details for product %s: %s",
+            product_id,
+            error,
+        )
+        flash(str(error), "error")
+        return redirect(url_for("admin.products"))
+
+    except Exception:
+        current_app.logger.exception(
+            "Unexpected error loading product %s.",
+            product_id,
+        )
+        flash(
+            "Product details could not be loaded. Please try again.",
+            "error",
+        )
+        return redirect(url_for("admin.products"))
+
+    return render_template(
+        "admin/product_detail.html",
+        product=product,
+    )
 
 @admin_bp.route("/products/new", methods=["GET", "POST"])
 @admin_required
