@@ -209,3 +209,70 @@ def test_missing_product_details_return_404(client):
     response = client.get("/products/999999")
 
     assert response.status_code == 404
+
+
+def test_products_sort_by_discounted_price_ascending(
+    app,
+    client,
+    catalogue_data,
+):
+    """Sort products from lowest to highest discounted price."""
+    with app.app_context():
+        premium = db.session.get(
+            Product,
+            catalogue_data["premium_id"],
+        )
+        rated = db.session.get(
+            Product,
+            catalogue_data["rated_id"],
+        )
+
+        # Premium Bottle: €20.00 -> €5.00 after 75% off.
+        premium.discount_percent = Decimal("75.00")
+
+        # Rated Gadget: €15.00 -> €12.00 after 20% off.
+        rated.discount_percent = Decimal("20.00")
+
+        db.session.commit()
+
+    response = client.get("/products/?sort=price_asc")
+
+    assert response.status_code == 200
+
+    premium_position = response.data.index(b"Premium Bottle")
+    budget_position = response.data.index(b"Budget Mug")
+    rated_position = response.data.index(b"Rated Gadget")
+
+    assert premium_position < budget_position < rated_position
+
+
+def test_products_sort_by_discounted_price_descending(
+    app,
+    client,
+    catalogue_data,
+):
+    """Sort products from highest to lowest discounted price."""
+    with app.app_context():
+        premium = db.session.get(
+            Product,
+            catalogue_data["premium_id"],
+        )
+        rated = db.session.get(
+            Product,
+            catalogue_data["rated_id"],
+        )
+
+        premium.discount_percent = Decimal("75.00")
+        rated.discount_percent = Decimal("20.00")
+
+        db.session.commit()
+
+    response = client.get("/products/?sort=price_desc")
+
+    assert response.status_code == 200
+
+    rated_position = response.data.index(b"Rated Gadget")
+    budget_position = response.data.index(b"Budget Mug")
+    premium_position = response.data.index(b"Premium Bottle")
+
+    assert rated_position < budget_position < premium_position

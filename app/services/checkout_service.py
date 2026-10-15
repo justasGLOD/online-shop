@@ -45,11 +45,11 @@ def checkout_cart(user_id):
     """
     Purchase everything in the customer's cart in one transaction.
 
-    The balance, stock, order, transaction history and cart are updated
-    together. If checkout fails, the database transaction is rolled back.
+    Apply current product discounts and store the actual purchase-time
+    unit price in each OrderItem. All database changes are committed
+    together or rolled back together.
     """
     try:
-        # Lock the customer row where the database supports row-level locks.
         user_statement = (
             select(User)
             .where(User.id == user_id)
@@ -64,7 +64,6 @@ def checkout_cart(user_id):
                 "Your account could not be found."
             )
 
-        # Load the cart and its items.
         cart_statement = (
             select(Cart)
             .options(selectinload(Cart.items))
@@ -74,11 +73,9 @@ def checkout_cart(user_id):
         cart = db.session.scalar(cart_statement)
 
         if cart is None or not cart.items:
-            raise EmptyCartError(
-                "Your shopping cart is empty."
-            )
+            raise EmptyCartError("Your shopping cart is empty.")
 
-        # Validate every product before changing any balances or stock.
+        # Validate all products before changing stock or the balance.
         purchase_lines = []
         total = Decimal("0.00")
 
@@ -107,16 +104,47 @@ def checkout_cart(user_id):
                     "Your cart contains an invalid quantity."
                 )
 
+            # Validate the original price and discount separately.
             try:
-                price = Decimal(str(product.price))
+                original_price = Decimal(str(product.price))
+                discount_percent = Decimal(
+                    str(
+                        product.discount_percent
+                        if product.discount_percent is not None
+                        else Decimal("0.00")
+                    )
+                )
             except (InvalidOperation, TypeError, ValueError) as error:
                 raise CheckoutError(
-                    "A product has an invalid price."
+                    "A product has an invalid price or discount."
                 ) from error
 
-            if not price.is_finite() or price <= 0:
+            if not original_price.is_finite() or original_price <= 0:
                 raise CheckoutError(
                     "A product has an invalid price."
+                )
+
+            if (
+                not discount_percent.is_finite()
+                or discount_percent < Decimal("0.00")
+                or discount_percent > Decimal("100.00")
+            ):
+                raise CheckoutError(
+                    "A product has an invalid discount."
+                )
+
+            # Use the same rounded price shown on the product pages.
+            try:
+                price = Decimal(str(product.discounted_price))
+            except (InvalidOperation, TypeError, ValueError) as error:
+                raise CheckoutError(
+                    "A product has an invalid discounted price."
+                ) from error
+
+            # A 100% discount is valid and results in a free product.
+            if not price.is_finite() or price < Decimal("0.00"):
+                raise CheckoutError(
+                    "A product has an invalid discounted price."
                 )
 
             if item.quantity > product.stock:
@@ -132,7 +160,6 @@ def checkout_cart(user_id):
                 (item, product, item.quantity, price)
             )
 
-        # Recheck the account balance using decimal arithmetic.
         balance = Decimal(str(user.balance))
 
         if balance < total:
@@ -141,7 +168,6 @@ def checkout_cart(user_id):
                 f"€{total:.2f}, but your balance is €{balance:.2f}."
             )
 
-        # Create the order after all business validations have passed.
         order = Order(
             user_id=user.id,
             total_price=total,
@@ -151,7 +177,7 @@ def checkout_cart(user_id):
         db.session.add(order)
         db.session.flush()
 
-        # Save purchase-time prices and reduce inventory.
+        # Preserve the actual discounted unit price paid by the customer.
         for item, product, quantity, price in purchase_lines:
             order_item = OrderItem(
                 order_id=order.id,
@@ -163,10 +189,8 @@ def checkout_cart(user_id):
             db.session.add(order_item)
             product.stock -= quantity
 
-        # Deduct the purchase total from the customer's balance.
         user.balance = balance - total
 
-        # Purchases are recorded as negative balance transactions.
         balance_transaction = BalanceTransaction(
             user_id=user.id,
             amount=-total,
@@ -175,11 +199,10 @@ def checkout_cart(user_id):
 
         db.session.add(balance_transaction)
 
-        # Clear the cart only as part of this same transaction.
         for item in list(cart.items):
             db.session.delete(item)
 
-        # This is the sole commit for the entire checkout operation.
+        # One commit keeps the purchase atomic.
         db.session.commit()
 
         return order

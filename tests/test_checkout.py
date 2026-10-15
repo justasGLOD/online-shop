@@ -307,3 +307,122 @@ def test_checkout_form_completes_purchase(
         assert len(get_user_orders(user.id)) == 1
         assert len(get_user_transactions(user.id)) == 1
         assert get_cart_items(checkout_data["cart_id"]) == []
+
+def test_discounted_checkout_charges_discounted_price(
+    app,
+    checkout_data,
+):
+    """Charge the discounted price and preserve it in order history."""
+    with app.app_context():
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+        product.discount_percent = Decimal("20.00")
+        db.session.commit()
+
+        order = checkout_cart(checkout_data["user_id"])
+
+        user = db.session.get(User, checkout_data["user_id"])
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+
+        # Original price: €12.50
+        # Discount: 20%
+        # Discounted unit price: €10.00
+        # Quantity: 2
+        # Total: €20.00
+        assert order.total_price == Decimal("20.00")
+        assert user.balance == Decimal("80.00")
+        assert product.stock == 3
+
+        order_items = get_order_items(order.id)
+
+        assert len(order_items) == 1
+        assert order_items[0].quantity == 2
+        assert order_items[0].price_at_purchase == Decimal("10.00")
+
+        transactions = get_user_transactions(user.id)
+
+        assert len(transactions) == 1
+        assert transactions[0].amount == Decimal("-20.00")
+        assert transactions[0].transaction_type == "purchase"
+
+        assert get_cart_items(checkout_data["cart_id"]) == []
+
+
+def test_insufficient_balance_uses_discounted_total(
+    app,
+    checkout_data,
+):
+    """An unaffordable discounted order must change nothing."""
+    with app.app_context():
+        user = db.session.get(User, checkout_data["user_id"])
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+
+        user.balance = Decimal("19.99")
+        product.discount_percent = Decimal("20.00")
+        db.session.commit()
+
+        # The discounted order costs €20.00, so €19.99 is insufficient.
+        with pytest.raises(InsufficientBalanceError):
+            checkout_cart(checkout_data["user_id"])
+
+        db.session.expire_all()
+
+        user = db.session.get(User, checkout_data["user_id"])
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+
+        assert user.balance == Decimal("19.99")
+        assert product.stock == 5
+        assert get_user_orders(user.id) == []
+        assert get_user_transactions(user.id) == []
+        assert len(get_cart_items(checkout_data["cart_id"])) == 1
+
+
+def test_full_discount_checkout_is_free_but_reduces_stock(
+    app,
+    checkout_data,
+):
+    """A 100% discount costs nothing but still updates inventory."""
+    with app.app_context():
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+        product.discount_percent = Decimal("100.00")
+        db.session.commit()
+
+        order = checkout_cart(checkout_data["user_id"])
+
+        user = db.session.get(User, checkout_data["user_id"])
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+
+        assert order.total_price == Decimal("0.00")
+        assert user.balance == Decimal("100.00")
+        assert product.stock == 3
+
+        order_items = get_order_items(order.id)
+
+        assert len(order_items) == 1
+        assert order_items[0].quantity == 2
+        assert order_items[0].price_at_purchase == Decimal("0.00")
+
+        transactions = get_user_transactions(user.id)
+
+        assert len(transactions) == 1
+        assert transactions[0].amount == Decimal("0.00")
+        assert transactions[0].transaction_type == "purchase"
+
+        assert get_cart_items(checkout_data["cart_id"]) == []

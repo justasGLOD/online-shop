@@ -5,15 +5,23 @@ from app.extensions import db
 from app.models import Product, Review
 
 
-def get_active_products(sort_by="newest"):
-    """Return active products with average ratings and review counts."""
 
+def get_active_products(sort_by="newest"):
+    """Return active products with ratings, sorted by the selected option."""
     average_rating = func.coalesce(func.avg(Review.rating), 0.0)
     review_count = func.count(Review.id)
 
+    # Sort by the final price customers see, rounded to cents.
+    discounted_price = func.round(
+        Product.price
+        * (100 - func.coalesce(Product.discount_percent, 0))
+        / 100,
+        2,
+    )
+
     sort_options = {
-        "price_asc": Product.price.asc(),
-        "price_desc": Product.price.desc(),
+        "price_asc": discounted_price.asc(),
+        "price_desc": discounted_price.desc(),
         "rating_asc": average_rating.asc(),
         "rating_desc": average_rating.desc(),
         "newest": Product.created_at.desc(),
@@ -21,7 +29,6 @@ def get_active_products(sort_by="newest"):
         "name_desc": func.lower(Product.name).desc(),
     }
 
-    # Only allow predefined sorting options.
     sort_order = sort_options.get(
         sort_by,
         sort_options["newest"],
@@ -40,6 +47,7 @@ def get_active_products(sort_by="newest"):
     )
 
     return db.session.execute(statement).all()
+
 
 
 def get_active_product_by_id(product_id):
