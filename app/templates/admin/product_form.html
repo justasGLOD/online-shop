@@ -25,10 +25,38 @@
                   action="{{ url_for('admin.create_product') }}">
                 {{ form.hidden_tag() }}
 
-                {% for field in [form.name, form.description, form.price, form.stock] %}
+                {% for field in [
+                    form.name,
+                    form.description,
+                    form.price,
+                    form.discount_percent,
+                    form.stock
+                ] %}
                     <div class="form-group">
                         {{ field.label }}
-                        {{ field(class_="form-control") }}
+
+                        {% if field.name == "price" %}
+                            {{ field(
+                                class_="form-control",
+                                step="0.01",
+                                min="0.01"
+                            ) }}
+                        {% elif field.name == "discount_percent" %}
+                            {{ field(
+                                class_="form-control",
+                                step="0.01",
+                                min="0",
+                                max="100"
+                            ) }}
+                            <small>
+                                Enter a discount from 0% to 100%.
+                                Use 0 for no discount.
+                            </small>
+                        {% elif field.name == "description" %}
+                            {{ field(class_="form-control", rows="5") }}
+                        {% else %}
+                            {{ field(class_="form-control") }}
+                        {% endif %}
 
                         {% for error in field.errors %}
                             <p class="field-error">{{ error }}</p>

@@ -145,6 +145,7 @@ def create_product():
                 description=form.description.data,
                 price=form.price.data,
                 stock=form.stock.data,
+                discount_percent=form.discount_percent.data,
             )
             flash("Product created successfully.", "success")
             return redirect(url_for("admin.products"))
@@ -179,6 +180,7 @@ def edit_product(product_id):
                 name=form.name.data,
                 description=form.description.data,
                 price=form.price.data,
+                discount_percent=form.discount_percent.data,
             )
             flash("Product updated successfully.", "success")
             return redirect(url_for("admin.products"))

@@ -1,4 +1,3 @@
-
 from decimal import Decimal, InvalidOperation
 
 from flask import current_app
@@ -18,6 +17,7 @@ from app.models import Product
 
 CENT = Decimal("0.01")
 MAX_PRICE = Decimal("99999999.99")
+MAX_DISCOUNT = Decimal("100.00")
 
 
 class AdminProductError(Exception):
@@ -26,6 +26,34 @@ class AdminProductError(Exception):
 
 class AdminProductNotFoundError(AdminProductError):
     """Raised when the requested product does not exist."""
+
+
+def _normalize_discount_percent(value):
+    """Validate and normalize a product discount percentage."""
+    try:
+        discount = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as error:
+        raise AdminProductError(
+            "Enter a valid discount percentage."
+        ) from error
+
+    if not discount.is_finite():
+        raise AdminProductError(
+            "Enter a valid discount percentage."
+        )
+
+    if discount < Decimal("0.00") or discount > MAX_DISCOUNT:
+        raise AdminProductError(
+            "Discount must be between 0% and 100%."
+        )
+
+    if discount != discount.quantize(CENT):
+        raise AdminProductError(
+            "Discount can have no more than two decimal places."
+        )
+
+    return discount
+
 
 def list_admin_products():
     """Return all products, including inactive products."""
@@ -41,16 +69,21 @@ def list_admin_products():
             "Products could not be loaded. Please try again."
         ) from error
 
-def update_admin_product(product_id, name, description, price):
-    """Validate and update an existing product without changing stock."""
 
-    # Find the existing product first.
+def update_admin_product(
+    product_id,
+    name,
+    description,
+    price,
+    discount_percent=None,
+):
+    """Validate and update product details without changing stock."""
     product = get_admin_product_details(product_id)
 
     normalized_name = (name or "").strip()
     normalized_description = (description or "").strip()
 
-    if len(normalized_name) < 2 or len(normalized_name) > 150:
+    if not 2 <= len(normalized_name) <= 150:
         raise AdminProductError(
             "Product name must contain 2–150 characters."
         )
@@ -80,7 +113,20 @@ def update_admin_product(product_id, name, description, price):
             "Price can have no more than two decimal places."
         )
 
+    if discount_percent is None:
+        normalized_discount = Decimal(
+            str(product.discount_percent or Decimal("0.00"))
+        )
+    else:
+        normalized_discount = _normalize_discount_percent(
+            discount_percent
+        )
+
     try:
+        # The existing CRUD function commits changes to this product.
+        # Set the discount on the same ORM object before calling it.
+        product.discount_percent = normalized_discount
+
         return update_product_details(
             product=product,
             name=normalized_name,
@@ -97,12 +143,19 @@ def update_admin_product(product_id, name, description, price):
             "The product could not be updated. Please try again."
         ) from error
 
-def create_admin_product(name, description, price, stock):
-    """Validate and create a product."""
+
+def create_admin_product(
+    name,
+    description,
+    price,
+    stock,
+    discount_percent=Decimal("0.00"),
+):
+    """Validate and create a product, including its discount."""
     normalized_name = (name or "").strip()
     normalized_description = (description or "").strip()
 
-    if len(normalized_name) < 2 or len(normalized_name) > 150:
+    if not 2 <= len(normalized_name) <= 150:
         raise AdminProductError(
             "Product name must contain 2–150 characters."
         )
@@ -120,9 +173,7 @@ def create_admin_product(name, description, price, stock):
         ) from error
 
     if not normalized_price.is_finite():
-        raise AdminProductError(
-            "Enter a valid product price."
-        )
+        raise AdminProductError("Enter a valid product price.")
 
     if normalized_price < CENT or normalized_price > MAX_PRICE:
         raise AdminProductError(
@@ -134,6 +185,10 @@ def create_admin_product(name, description, price, stock):
             "Price can have no more than two decimal places."
         )
 
+    normalized_discount = _normalize_discount_percent(
+        discount_percent
+    )
+
     try:
         normalized_stock = int(stock)
     except (TypeError, ValueError) as error:
@@ -142,14 +197,13 @@ def create_admin_product(name, description, price, stock):
         ) from error
 
     if normalized_stock < 0:
-        raise AdminProductError(
-            "Stock cannot be negative."
-        )
+        raise AdminProductError("Stock cannot be negative.")
 
     product = Product(
         name=normalized_name,
         description=normalized_description or None,
         price=normalized_price,
+        discount_percent=normalized_discount,
         stock=normalized_stock,
         is_active=True,
     )
@@ -165,6 +219,7 @@ def create_admin_product(name, description, price, stock):
         raise AdminProductError(
             "The product could not be saved. Please try again."
         ) from error
+
 
 def restock_admin_product(product_id, quantity):
     """Increase the stock of an existing product."""
@@ -194,7 +249,6 @@ def restock_admin_product(product_id, quantity):
                 "The requested product was not found."
             )
 
-        # Keep quantities within the database Integer range.
         if product.stock + quantity > 2147483647:
             raise AdminProductError(
                 "The resulting stock quantity is too large."
@@ -214,6 +268,7 @@ def restock_admin_product(product_id, quantity):
         raise AdminProductError(
             "Stock could not be updated. Please try again."
         ) from error
+
 
 def deactivate_admin_product(product_id):
     """Remove a product from sale without deleting its record."""
@@ -257,6 +312,7 @@ def deactivate_admin_product(product_id):
             "The product could not be removed from sale. "
             "Please try again."
         ) from error
+
 
 def get_admin_product_details(product_id):
     """Find a product for administration, including inactive products."""

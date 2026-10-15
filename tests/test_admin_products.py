@@ -752,3 +752,135 @@ def test_deactivating_missing_customer_returns_404(
     )
 
     assert response.status_code == 404
+
+
+def test_admin_can_create_product_with_discount(client, app, accounts):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        "/admin/products/new",
+        data={
+            "name": "Discounted Mouse",
+            "description": "Mouse with a promotional discount.",
+            "price": "24.99",
+            "discount_percent": "15.00",
+            "stock": "10",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"Product created successfully." in response.data
+
+    with app.app_context():
+        product = db.session.scalar(
+            select(Product).where(
+                Product.name == "Discounted Mouse"
+            )
+        )
+
+        assert product is not None
+        assert product.discount_percent == Decimal("15.00")
+        assert product.discounted_price == Decimal("21.24")
+
+
+def test_admin_cannot_create_product_with_invalid_discount(
+    client, app, accounts
+):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        "/admin/products/new",
+        data={
+            "name": "Invalid Discount Product",
+            "description": "Invalid discount test.",
+            "price": "20.00",
+            "discount_percent": "100.01",
+            "stock": "5",
+        },
+    )
+
+    assert response.status_code == 200
+    assert b"Discount must be between 0 and 100%." in response.data
+
+    with app.app_context():
+        product = db.session.scalar(
+            select(Product).where(
+                Product.name == "Invalid Discount Product"
+            )
+        )
+
+        assert product is None
+
+
+def test_admin_can_edit_product_discount(
+    client, app, accounts, sample_product
+):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        f"/admin/products/{sample_product}/edit",
+        data={
+            "name": "Discounted Desk Lamp",
+            "description": "Lamp with a discount.",
+            "price": "19.99",
+            "discount_percent": "20.00",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"Product updated successfully." in response.data
+
+    with app.app_context():
+        product = db.session.get(Product, sample_product)
+
+        assert product is not None
+        assert product.name == "Discounted Desk Lamp"
+        assert product.discount_percent == Decimal("20.00")
+        assert product.discounted_price == Decimal("15.99")
+        assert product.stock == 5
+
+
+def test_admin_cannot_edit_product_with_invalid_discount(
+    client, app, accounts, sample_product
+):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        f"/admin/products/{sample_product}/edit",
+        data={
+            "name": "Invalid Discount Edit",
+            "description": "Should not be saved.",
+            "price": "29.99",
+            "discount_percent": "101.00",
+        },
+    )
+
+    assert response.status_code == 200
+    assert b"Discount must be between 0 and 100%." in response.data
+
+    with app.app_context():
+        product = db.session.get(Product, sample_product)
+
+        assert product is not None
+        assert product.name == "Test Desk Lamp"
+        assert product.price == Decimal("19.99")
+        assert product.discount_percent == Decimal("0.00")
+        assert product.stock == 5

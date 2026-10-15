@@ -29,7 +29,29 @@
                 {{ product.description or "No description available." }}
             </p>
 
-            <h2>€{{ "%.2f"|format(product.price) }}</h2>
+            {% if product.discount_percent > 0 %}
+                <p class="product-price">
+                    Original price:
+                    <del>€{{ "%.2f"|format(product.price) }}</del>
+                </p>
+
+                <h2>
+                    Discounted price:
+                    €{{ "%.2f"|format(product.discounted_price) }}
+                </h2>
+
+                <p class="discount-badge">
+                    {{ "%.2f"|format(product.discount_percent) }}% OFF
+                </p>
+
+                <p>
+                    You save:
+                    €{{ "%.2f"|format(product.discount_amount) }}
+                </p>
+            {% else %}
+                <h2>€{{ "%.2f"|format(product.price) }}</h2>
+            {% endif %}
+
             <p>Available stock: {{ product.stock }}</p>
 
             <p>
@@ -109,7 +131,10 @@
                     </article>
                 {% endfor %}
             {% else %}
-                <p>No reviews yet. Be the first to review this product after purchasing it.</p>
+                <p>
+                    No reviews yet. Be the first to review this product
+                    after purchasing it.
+                </p>
             {% endif %}
 
             {% if current_user.is_authenticated %}
@@ -129,7 +154,11 @@
 
                         <div class="form-group">
                             {{ review_form.rating.label }}
-                            {{ review_form.rating(class_="form-control", min="1", max="5") }}
+                            {{ review_form.rating(
+                                class_="form-control",
+                                min="1",
+                                max="5"
+                            ) }}
 
                             {% for error in review_form.rating.errors %}
                                 <p class="field-error">{{ error }}</p>
@@ -138,7 +167,10 @@
 
                         <div class="form-group">
                             {{ review_form.comment.label }}
-                            {{ review_form.comment(class_="form-control", rows="4") }}
+                            {{ review_form.comment(
+                                class_="form-control",
+                                rows="4"
+                            ) }}
 
                             {% for error in review_form.comment.errors %}
                                 <p class="field-error">{{ error }}</p>

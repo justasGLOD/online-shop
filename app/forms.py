@@ -1,12 +1,22 @@
+
+from decimal import Decimal
+
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
-from wtforms import DecimalField, IntegerField, TextAreaField
-from wtforms.validators import NumberRange, Optional
+from wtforms import (
+    DecimalField,
+    IntegerField,
+    PasswordField,
+    StringField,
+    SubmitField,
+    TextAreaField,
+)
 from wtforms.validators import (
     DataRequired,
     Email,
     EqualTo,
     Length,
+    NumberRange,
+    Optional,
     Regexp,
 )
 
@@ -72,6 +82,7 @@ class RegistrationForm(FlaskForm):
 
     submit = SubmitField("Create account")
 
+
 class LoginForm(FlaskForm):
     identity = StringField(
         "Username or email",
@@ -93,8 +104,10 @@ class LoginForm(FlaskForm):
 
     submit = SubmitField("Log in")
 
+
 class LogoutForm(FlaskForm):
     submit = SubmitField("Log out")
+
 
 class ProductForm(FlaskForm):
     name = StringField(
@@ -125,6 +138,19 @@ class ProductForm(FlaskForm):
         ],
     )
 
+    discount_percent = DecimalField(
+        "Discount (%)",
+        places=2,
+        default=Decimal("0.00"),
+        validators=[
+            NumberRange(
+                min=0,
+                max=100,
+                message="Discount must be between 0 and 100%%.",
+            ),
+        ],
+    )
+
     stock = IntegerField(
         "Initial stock quantity",
         validators=[
@@ -137,6 +163,7 @@ class ProductForm(FlaskForm):
     )
 
     submit = SubmitField("Add product")
+
 
 class ProductEditForm(FlaskForm):
     name = StringField(
@@ -167,7 +194,21 @@ class ProductEditForm(FlaskForm):
         ],
     )
 
+    discount_percent = DecimalField(
+        "Discount (%)",
+        places=2,
+        default=Decimal("0.00"),
+        validators=[
+            NumberRange(
+                min=0,
+                max=100,
+                message="Discount must be between 0 and 100%%.",
+            ),
+        ],
+    )
+
     submit = SubmitField("Save changes")
+
 
 class RestockForm(FlaskForm):
     quantity = IntegerField(
@@ -187,8 +228,11 @@ class RestockForm(FlaskForm):
 class ProductActionForm(FlaskForm):
     submit = SubmitField("Remove from sale")
 
+
 class UserActionForm(FlaskForm):
     submit = SubmitField("Deactivate account")
+
+
 class CartQuantityForm(FlaskForm):
     quantity = IntegerField(
         "Quantity",
@@ -203,11 +247,14 @@ class CartQuantityForm(FlaskForm):
 
     submit = SubmitField("Add to cart")
 
+
 class CartActionForm(FlaskForm):
     submit = SubmitField("Remove")
 
+
 class CheckoutForm(FlaskForm):
     submit = SubmitField("Confirm purchase")
+
 
 class BalanceTopUpForm(FlaskForm):
     amount = StringField(
@@ -218,6 +265,7 @@ class BalanceTopUpForm(FlaskForm):
     )
 
     submit = SubmitField("Top up balance")
+
 
 class ReviewForm(FlaskForm):
     rating = IntegerField(
