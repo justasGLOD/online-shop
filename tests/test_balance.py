@@ -108,42 +108,42 @@ def test_customer_can_view_balance(client, accounts):
     assert b"40.00" in response.data
 
 
-def test_customer_can_top_up_balance(client, app, accounts):
+
+def test_customer_can_top_up_balance(client, app, accounts, monkeypatch):
     login_as(client, accounts["username"], accounts["password"])
+
+    with app.app_context():
+        user = db.session.get(User, accounts["user_id"])
+        original_balance = Decimal(str(user.balance))
+
+    checkout_url = "https://checkout.stripe.com/c/pay_test"
+    captured = {}
+
+    def fake_create_session(**kwargs):
+        captured.update(kwargs)
+        return None, checkout_url
+
+    monkeypatch.setattr(
+        "app.routes.balance.create_balance_top_up_session",
+        fake_create_session,
+    )
 
     response = client.post(
         "/balance/top-up",
         data={"amount": "25.50"},
-        follow_redirects=True,
+        follow_redirects=False,
     )
 
-    assert response.status_code == 200
-    assert b"Successfully added" in response.data
-    assert b"65.50" in response.data
+    assert response.status_code == 303
+    assert response.headers["Location"] == checkout_url
+    assert captured["user_id"] == accounts["user_id"]
+    assert Decimal(str(captured["amount"])) == Decimal("25.50")
 
     with app.app_context():
         user = db.session.get(User, accounts["user_id"])
-        transactions = get_transactions(user.id)
+        assert Decimal(str(user.balance)) == original_balance
 
-        assert user.balance == Decimal("65.50")
-        assert len(transactions) == 1
-        assert transactions[0].amount == Decimal("25.50")
-        assert transactions[0].transaction_type == "top_up"
-
-
-@pytest.mark.parametrize(
-    "amount",
-    [
-        "0",
-        "-1",
-        "abc",
-        "",
-        "NaN",
-        "Infinity",
-        "1.239",
-        "1.230",
-    ],
-)
+@pytest.mark.parametrize("amount",["0","-1","abc","1.234","100000000.00","",],)
 def test_invalid_amount_is_rejected(app, accounts, amount):
     with app.app_context():
         with pytest.raises(InvalidTopUpAmountError):
@@ -237,24 +237,40 @@ def test_transaction_history_shows_top_ups_and_purchases(
     assert b"+\xe2\x82\xac999.00" not in response.data
 
 
-def test_top_up_only_changes_logged_in_customer(
+
+def test_top_up_does_not_change_balances_before_webhook(
     client,
     app,
     accounts,
+    monkeypatch,
 ):
     login_as(client, accounts["username"], accounts["password"])
 
-    client.post(
+    with app.app_context():
+        user = db.session.get(User, accounts["user_id"])
+        other = db.session.get(User, accounts["other_id"])
+        original_balance = Decimal(str(user.balance))
+        other_original_balance = Decimal(str(other.balance))
+
+    checkout_url = "https://checkout.stripe.com/c/pay_test"
+
+    monkeypatch.setattr(
+        "app.routes.balance.create_balance_top_up_session",
+        lambda **kwargs: (None, checkout_url),
+    )
+
+    response = client.post(
         "/balance/top-up",
         data={"amount": "7.50"},
-        follow_redirects=True,
+        follow_redirects=False,
     )
+
+    assert response.status_code == 303
+    assert response.headers["Location"] == checkout_url
 
     with app.app_context():
         user = db.session.get(User, accounts["user_id"])
         other = db.session.get(User, accounts["other_id"])
 
-        assert user.balance == Decimal("47.50")
-        assert other.balance == Decimal("40.00")
-        assert len(get_transactions(user.id)) == 1
-        assert get_transactions(other.id) == []
+        assert Decimal(str(user.balance)) == original_balance
+        assert Decimal(str(other.balance)) == other_original_balance

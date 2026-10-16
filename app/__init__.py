@@ -34,6 +34,7 @@ def create_app(config_class=Config):
     from .routes.balance import balance_bp
     from .routes.reviews import reviews_bp
     from .routes.orders import orders_bp
+    from .routes.payments import payments_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(products_bp)
@@ -43,5 +44,6 @@ def create_app(config_class=Config):
     app.register_blueprint(balance_bp)
     app.register_blueprint(reviews_bp)
     app.register_blueprint(orders_bp)
+    app.register_blueprint(payments_bp)
     
     return app
