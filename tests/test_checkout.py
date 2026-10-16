@@ -426,3 +426,90 @@ def test_full_discount_checkout_is_free_but_reduces_stock(
         assert transactions[0].transaction_type == "purchase"
 
         assert get_cart_items(checkout_data["cart_id"]) == []
+
+@pytest.mark.parametrize(
+    (
+        "previous_orders",
+        "expected_unit_price",
+        "expected_total",
+        "expected_balance",
+    ),
+    [
+        (4, Decimal("12.50"), Decimal("25.00"), Decimal("75.00")),
+        (5, Decimal("11.88"), Decimal("23.76"), Decimal("76.24")),
+        (10, Decimal("11.25"), Decimal("22.50"), Decimal("77.50")),
+    ],
+)
+def test_checkout_applies_loyalty_tiers(
+    app,
+    checkout_data,
+    previous_orders,
+    expected_unit_price,
+    expected_total,
+    expected_balance,
+):
+    """Use previous completed orders to calculate loyalty discounts."""
+    with app.app_context():
+        db.session.add_all([
+            Order(
+                user_id=checkout_data["user_id"],
+                total_price=Decimal("10.00"),
+                status="completed",
+            )
+            for _ in range(previous_orders)
+        ])
+        db.session.commit()
+
+        order = checkout_cart(checkout_data["user_id"])
+
+        user = db.session.get(User, checkout_data["user_id"])
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+        items = get_order_items(order.id)
+
+        assert order.total_price == expected_total
+        assert user.balance == expected_balance
+        assert product.stock == 3
+        assert len(items) == 1
+        assert items[0].price_at_purchase == expected_unit_price
+        assert items[0].quantity == 2
+        assert get_cart_items(checkout_data["cart_id"]) == []
+
+
+def test_checkout_stacks_product_and_loyalty_discounts(
+    app,
+    checkout_data,
+):
+    """Apply loyalty savings after the product's existing discount."""
+    with app.app_context():
+        product = db.session.get(
+            Product,
+            checkout_data["product_id"],
+        )
+        product.discount_percent = Decimal("20.00")
+
+        db.session.add_all([
+            Order(
+                user_id=checkout_data["user_id"],
+                total_price=Decimal("10.00"),
+                status="completed",
+            )
+            for _ in range(5)
+        ])
+        db.session.commit()
+
+        order = checkout_cart(checkout_data["user_id"])
+
+        user = db.session.get(User, checkout_data["user_id"])
+        items = get_order_items(order.id)
+
+        # €12.50 less 20% = €10.00.
+        # €10.00 less a further 5% loyalty discount = €9.50.
+        # Two units cost €19.00 in total.
+        assert order.total_price == Decimal("19.00")
+        assert user.balance == Decimal("81.00")
+        assert len(items) == 1
+        assert items[0].price_at_purchase == Decimal("9.50")
+        assert items[0].quantity == 2
