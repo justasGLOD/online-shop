@@ -6,9 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
-from app.extensions import db
-from app.models import BalanceTransaction, Cart, Order, OrderItem, Product, User
-from app.services.loyalty_service import (
+from ..extensions import db
+from ..models import BalanceTransaction, Cart, Order, OrderItem, Product, User
+from ..services.loyalty_service import (
     LoyaltyDiscountError,
     apply_loyalty_discount,
     get_completed_order_count,
@@ -62,7 +62,7 @@ def checkout_cart(user_id):
 
         purchase_lines = []
 
-        # Validate every cart item before changing stock or balance.
+        # Validate all products before changing stock or balance.
         for item in cart.items:
             product = db.session.scalar(
                 select(Product)
@@ -85,7 +85,7 @@ def checkout_cart(user_id):
 
             try:
                 original_price = Decimal(str(product.price))
-                product_discount = Decimal(
+                discount = Decimal(
                     str(product.discount_percent or Decimal("0.00"))
                 )
                 price = Decimal(str(product.discounted_price))
@@ -98,14 +98,16 @@ def checkout_cart(user_id):
                 raise CheckoutError("A product has an invalid price.")
 
             if (
-                not product_discount.is_finite()
-                or product_discount < Decimal("0.00")
-                or product_discount > Decimal("100.00")
+                not discount.is_finite()
+                or discount < Decimal("0.00")
+                or discount > Decimal("100.00")
             ):
                 raise CheckoutError("A product has an invalid discount.")
 
             if not price.is_finite() or price < Decimal("0.00"):
-                raise CheckoutError("A product has an invalid discounted price.")
+                raise CheckoutError(
+                    "A product has an invalid discounted price."
+                )
 
             if item.quantity > product.stock:
                 raise InsufficientStockError(
@@ -113,22 +115,22 @@ def checkout_cart(user_id):
                     f"Available quantity: {product.stock}."
                 )
 
-            purchase_lines.append((item, product, item.quantity, price))
+            purchase_lines.append((product, item.quantity, price))
 
-        # Eligibility counts completed orders before this purchase.
+        # Determine loyalty eligibility before creating the new order.
         order_count = get_completed_order_count(user.id)
         loyalty_percent = get_loyalty_discount_percent(order_count)
 
-        # Apply loyalty savings to product-discounted unit prices.
         total = Decimal("0.00")
         final_lines = []
 
-        for item, product, quantity, product_price in purchase_lines:
+        # Apply loyalty savings to prices already discounted by the product.
+        for product, quantity, product_price in purchase_lines:
             final_price = apply_loyalty_discount(
                 product_price,
                 loyalty_percent,
             )
-            final_lines.append((item, product, quantity, final_price))
+            final_lines.append((product, quantity, final_price))
             total += final_price * quantity
 
         balance = Decimal(str(user.balance))
@@ -142,8 +144,8 @@ def checkout_cart(user_id):
         db.session.add(order)
         db.session.flush()
 
-        # Save the final per-unit price actually charged.
-        for item, product, quantity, price in final_lines:
+        # Record the final per-unit price actually charged.
+        for product, quantity, price in final_lines:
             db.session.add(
                 OrderItem(
                     order_id=order.id,
@@ -166,6 +168,7 @@ def checkout_cart(user_id):
         for item in list(cart.items):
             db.session.delete(item)
 
+        # Save the order, balance change, stock updates, and cart clearing together.
         db.session.commit()
         return order
 

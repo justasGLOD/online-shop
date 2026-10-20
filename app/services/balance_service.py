@@ -5,13 +5,13 @@ from flask import current_app
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.crud.balance_crud import (
+from ..crud.balance_crud import (
     create_balance_transaction,
     get_balance_transactions,
     get_user_by_id,
 )
-from app.extensions import db
-from app.models import BalanceTransaction, User
+from ..extensions import db
+from ..models import BalanceTransaction, User
 
 
 CENT = Decimal("0.01")
@@ -48,12 +48,11 @@ def _validate_top_up_amount(amount):
             raise InvalidTopUpAmountError(
                 "The top-up amount can have at most two decimal places."
             )
-        
+
         normalized = value.quantize(CENT)
 
     except InvalidTopUpAmountError:
         raise
-
     except (InvalidOperation, ValueError, TypeError, AttributeError) as error:
         raise InvalidTopUpAmountError(
             "Enter a valid amount with no more than two decimal places."
@@ -65,9 +64,7 @@ def _validate_top_up_amount(amount):
         )
 
     if normalized > MAX_BALANCE:
-        raise InvalidTopUpAmountError(
-            "The top-up amount is too large."
-        )
+        raise InvalidTopUpAmountError("The top-up amount is too large.")
 
     return normalized
 
@@ -82,28 +79,21 @@ def get_balance_overview(user_id):
         )
 
     transactions = get_balance_transactions(user.id)
-
     return Decimal(str(user.balance)), transactions
 
 
 def top_up_balance(user_id, amount):
-    """
-    Add store credit and record the top-up atomically.
-
-    If saving either the balance or its transaction fails, both changes
-    are rolled back.
-    """
+    """Add store credit and record the top-up atomically."""
     amount = _validate_top_up_amount(amount)
 
     try:
-        # Lock the user row on databases that support row-level locking.
+        # Lock the user row where the database supports row-level locking.
         statement = (
             select(User)
             .where(User.id == user_id)
             .with_for_update()
             .execution_options(populate_existing=True)
         )
-
         user = db.session.scalar(statement)
 
         if user is None:
@@ -126,38 +116,30 @@ def top_up_balance(user_id, amount):
             amount=amount,
             transaction_type="top_up",
         )
-
         create_balance_transaction(transaction)
 
         # Commit the balance and transaction record together.
         db.session.commit()
-
         return new_balance, transaction
 
     except BalanceError:
         db.session.rollback()
         raise
-
     except SQLAlchemyError as error:
         db.session.rollback()
-
         current_app.logger.exception(
             "Database error while topping up balance for user %s.",
             user_id,
         )
-
         raise BalanceError(
             "Your balance could not be updated. Please try again."
         ) from error
-
     except Exception as error:
         db.session.rollback()
-
         current_app.logger.exception(
             "Unexpected balance top-up error for user %s.",
             user_id,
         )
-
         raise BalanceError(
             "An unexpected error prevented the top-up. Please try again."
         ) from error

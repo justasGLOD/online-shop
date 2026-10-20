@@ -4,32 +4,75 @@ from datetime import datetime, timezone
 from flask_login import UserMixin
 from sqlalchemy import false
 
-from app.extensions import db
-
+from ..extensions import db
 
 class User(UserMixin, db.Model):
+    """Database model for registered shop users."""
+
     __tablename__ = "users"
 
+    # Identity and login credentials
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(255), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
+
+    # Account balance and access
     balance = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     is_admin = db.Column(db.Boolean, nullable=False, default=False)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
-    failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
-    blocked_until = db.Column(db.DateTime(timezone=True), nullable=True)
-    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
-    # Email verification and marketing preferences.
-    email_verified = db.Column(db.Boolean, nullable=False, default=False, server_default=false())
-    email_verified_at = db.Column(db.DateTime(timezone=True), nullable=True)
-    verification_email_sent_at = db.Column(db.DateTime(timezone=True), nullable=True)
-    marketing_opt_in = db.Column(db.Boolean, nullable=False, default=False, server_default=false())
-    cart = db.relationship("Cart", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    # Login security
+    failed_login_attempts = db.Column(
+        db.Integer, nullable=False, default=0
+    )
+    blocked_until = db.Column(db.DateTime(timezone=True), nullable=True)
+
+    # Account creation
+    created_at = db.Column(
+        db.DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    # Email verification and marketing preferences
+    email_verified = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
+    email_verified_at = db.Column(
+        db.DateTime(timezone=True), nullable=True
+    )
+    verification_email_sent_at = db.Column(
+        db.DateTime(timezone=True), nullable=True
+    )
+    marketing_opt_in = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
+
+    # Related records
+    cart = db.relationship(
+        "Cart",
+        back_populates="user",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
     orders = db.relationship("Order", back_populates="user")
-    reviews = db.relationship("Review", back_populates="user", cascade="all, delete-orphan")
-    balance_transactions = db.relationship("BalanceTransaction", back_populates="user", cascade="all, delete-orphan")
+    reviews = db.relationship(
+        "Review",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    balance_transactions = db.relationship(
+        "BalanceTransaction",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return f"<User {self.username}>"

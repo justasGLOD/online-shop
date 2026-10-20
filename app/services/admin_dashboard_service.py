@@ -2,16 +2,16 @@
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.crud.admin_dashboard_crud import get_dashboard_statistics
-from app.extensions import db
+from ..crud.admin_dashboard_crud import get_dashboard_statistics
+from ..extensions import db
 
 
 class AdminDashboardError(Exception):
-    """Expected error while loading dashboard statistics."""
+    """Raised when dashboard statistics cannot be loaded."""
 
 
 def get_admin_dashboard_data():
-    """Load dashboard statistics and handle database errors safely."""
+    """Load dashboard statistics and handle database errors."""
     try:
         return get_dashboard_statistics()
 

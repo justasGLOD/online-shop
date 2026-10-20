@@ -3,53 +3,42 @@ from decimal import Decimal
 
 from sqlalchemy import func, select
 
-from app.extensions import db
-from app.models import Order, Product, User
+from ..extensions import db
+from ..models import Order, Product, User
 
 
 def get_dashboard_statistics():
-    """Calculate product, user and order statistics from the database."""
+    """Calculate product, user, and order statistics."""
 
     total_products = db.session.scalar(
         select(func.count(Product.id))
     ) or 0
-
     active_products = db.session.scalar(
-        select(func.count(Product.id)).where(
-            Product.is_active.is_(True)
-        )
+        select(func.count(Product.id)).where(Product.is_active.is_(True))
     ) or 0
 
     total_users = db.session.scalar(
         select(func.count(User.id))
     ) or 0
-
     active_users = db.session.scalar(
-        select(func.count(User.id)).where(
-            User.is_active.is_(True)
-        )
+        select(func.count(User.id)).where(User.is_active.is_(True))
     ) or 0
 
     total_orders = db.session.scalar(
         select(func.count(Order.id))
     ) or 0
-
     completed_orders = db.session.scalar(
-        select(func.count(Order.id)).where(
-            Order.status == "completed"
-        )
+        select(func.count(Order.id)).where(Order.status == "completed")
     ) or 0
 
-    total_revenue = db.session.scalar(
+    revenue = db.session.scalar(
         select(func.sum(Order.total_price)).where(
             Order.status == "completed"
         )
     )
-
-    if total_revenue is None:
-        total_revenue = Decimal("0.00")
-    else:
-        total_revenue = Decimal(str(total_revenue))
+    total_revenue = (
+        Decimal("0.00") if revenue is None else Decimal(str(revenue))
+    )
 
     return {
         "total_products": int(total_products),

@@ -1,48 +1,32 @@
+
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 
-from app.extensions import db
+from ..extensions import db
 
 
 class Product(db.Model):
+    """Store product details, pricing, stock, and reviews."""
+
     __tablename__ = "products"
 
+    # Basic product information
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    price = db.Column(db.Numeric(10, 2), nullable=False)
 
-    name = db.Column(
-        db.String(150),
-        nullable=False,
-    )
-
-    description = db.Column(
-        db.Text,
-        nullable=True,
-    )
-
-    price = db.Column(
-        db.Numeric(10, 2),
-        nullable=False,
-    )
-
+    # Discount and inventory
     discount_percent = db.Column(
         db.Numeric(5, 2),
         nullable=False,
         default=Decimal("0.00"),
         server_default="0.00",
     )
+    stock = db.Column(db.Integer, nullable=False, default=0)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
 
-    stock = db.Column(
-        db.Integer,
-        nullable=False,
-        default=0,
-    )
-
-    is_active = db.Column(
-        db.Boolean,
-        nullable=False,
-        default=True,
-    )
-
+    # Product creation timestamp
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,
@@ -58,18 +42,11 @@ class Product(db.Model):
 
     @property
     def discounted_price(self):
-        """Return the final price after applying the discount."""
-        original_price = Decimal(str(self.price))
-        discount = Decimal(
-            str(self.discount_percent or Decimal("0.00"))
-        )
+        """Calculate the final price after the discount."""
+        price = Decimal(str(self.price))
+        discount = Decimal(str(self.discount_percent or Decimal("0.00")))
 
-        final_price = (
-            original_price
-            * (Decimal("100.00") - discount)
-            / Decimal("100.00")
-        )
-
+        final_price = price * (Decimal("100") - discount) / Decimal("100")
         return final_price.quantize(
             Decimal("0.01"),
             rounding=ROUND_HALF_UP,
@@ -77,21 +54,14 @@ class Product(db.Model):
 
     @property
     def discount_amount(self):
-        """Return the monetary amount saved by the discount."""
+        """Calculate the amount saved through the discount."""
         return (
             Decimal(str(self.price)) - self.discounted_price
         ).quantize(Decimal("0.01"))
 
-    cart_items = db.relationship(
-        "CartItem",
-        back_populates="product",
-    )
-
-    order_items = db.relationship(
-        "OrderItem",
-        back_populates="product",
-    )
-
+    # Relationships with other database records
+    cart_items = db.relationship("CartItem", back_populates="product")
+    order_items = db.relationship("OrderItem", back_populates="product")
     reviews = db.relationship(
         "Review",
         back_populates="product",

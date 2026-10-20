@@ -1,73 +1,108 @@
+
 import smtplib
+from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 
-from datetime import datetime, timedelta, timezone
 from flask import current_app, url_for
-from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-
-from app.extensions import db
-from app.models import User
+from itsdangerous import (
+    BadSignature,
+    SignatureExpired,
+    URLSafeTimedSerializer,
+)
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 
+from ..extensions import db
+from ..models import User
+
+
+TOKEN_SALT = "online-shop-email-verification"
+VERIFICATION_COOLDOWN = timedelta(seconds=60)
+
+
 class EmailDeliveryError(Exception):
-    """Email could not be delivered."""
+    """Raised when an email cannot be delivered."""
+
+
+def _verification_serializer():
+    """Create the serializer used for verification tokens."""
+    return URLSafeTimedSerializer(
+        current_app.config["SECRET_KEY"],
+        salt=TOKEN_SALT,
+    )
 
 
 def generate_verification_token(user):
     """Create a signed token containing the user ID and email."""
-    serializer = URLSafeTimedSerializer(
-        current_app.config["SECRET_KEY"], salt="online-shop-email-verification"
+    return _verification_serializer().dumps(
+        {"user_id": user.id, "email": user.email}
     )
-    return serializer.dumps({"user_id": user.id, "email": user.email})
 
 
 def load_verification_token(token):
-    """Return verified token data or None for invalid/expired tokens."""
-    serializer = URLSafeTimedSerializer(
-        current_app.config["SECRET_KEY"], salt="online-shop-email-verification"
-    )
+    """Return verified token data or None for invalid or expired tokens."""
     try:
-        data = serializer.loads(
-            token, max_age=current_app.config.get(
+        data = _verification_serializer().loads(
+            token,
+            max_age=current_app.config.get(
                 "EMAIL_VERIFICATION_TOKEN_MAX_AGE", 3600
-            )
+            ),
         )
-        if not isinstance(data, dict) or "user_id" not in data or "email" not in data:
-            return None
-        return data
     except (BadSignature, SignatureExpired, TypeError, ValueError):
         return None
+
+    if not isinstance(data, dict) or "user_id" not in data or "email" not in data:
+        return None
+
+    return data
 
 
 def _deliver_email(recipient, subject, body):
     """Send a plain-text email through configured SMTP."""
     config = current_app.config
     server = config.get("MAIL_SERVER", "")
-    sender = config.get("MAIL_DEFAULT_SENDER") or config.get("MAIL_USERNAME", "")
+    sender = config.get("MAIL_DEFAULT_SENDER") or config.get(
+        "MAIL_USERNAME", ""
+    )
 
     if not server or not sender:
         if current_app.testing:
-            current_app.logger.info("Email skipped in test mode for %s.", recipient)
+            current_app.logger.info(
+                "Email skipped in test mode for %s.", recipient
+            )
             return False
+
         raise EmailDeliveryError("Email delivery is not configured.")
 
     message = EmailMessage()
-    message["From"], message["To"], message["Subject"] = sender, recipient, subject
+    message["From"] = sender
+    message["To"] = recipient
+    message["Subject"] = subject
     message.set_content(body)
 
     try:
-        with smtplib.SMTP(server, config.get("MAIL_PORT", 587), timeout=15) as smtp:
+        with smtplib.SMTP(
+            server,
+            config.get("MAIL_PORT", 587),
+            timeout=15,
+        ) as smtp:
             if config.get("MAIL_USE_TLS", True):
                 smtp.starttls()
-            username, password = config.get("MAIL_USERNAME"), config.get("MAIL_PASSWORD")
+
+            username = config.get("MAIL_USERNAME")
+            password = config.get("MAIL_PASSWORD")
             if username and password:
                 smtp.login(username, password)
+
             smtp.send_message(message)
+
         return True
+
     except (OSError, smtplib.SMTPException) as error:
         current_app.logger.exception("Email delivery failed.")
-        raise EmailDeliveryError("The email could not be sent. Please try again.") from error
+        raise EmailDeliveryError(
+            "The email could not be sent. Please try again."
+        ) from error
 
 
 def send_verification_email(user, verification_url):
@@ -75,7 +110,8 @@ def send_verification_email(user, verification_url):
     if current_app.debug and not current_app.config.get("MAIL_SERVER"):
         current_app.logger.warning(
             "SMTP is not configured; local verification URL for %s: %s",
-            user.email, verification_url,
+            user.email,
+            verification_url,
         )
         return False
 
@@ -87,11 +123,19 @@ def send_verification_email(user, verification_url):
         f"This link expires in approximately {age // 60} minutes.\n"
         "If you did not create this account, you can ignore this email."
     )
-    return _deliver_email(user.email, "Verify your Online Shop email", body)
+
+    return _deliver_email(
+        user.email,
+        "Verify your Online Shop email",
+        body,
+    )
+
 
 def send_marketing_email(subject, body):
     """Send promotional emails only to eligible customers."""
-    subject, body = (subject or "").strip(), (body or "").strip()
+    subject = (subject or "").strip()
+    body = (body or "").strip()
+
     if not subject or not body:
         raise EmailDeliveryError("Subject and message are required.")
 
@@ -106,9 +150,12 @@ def send_marketing_email(subject, body):
     except SQLAlchemyError as error:
         db.session.rollback()
         current_app.logger.exception("Could not load marketing recipients.")
-        raise EmailDeliveryError("Could not load campaign recipients.") from error
+        raise EmailDeliveryError(
+            "Could not load campaign recipients."
+        ) from error
 
     sent = failed = 0
+
     for user in users:
         try:
             if _deliver_email(user.email, subject, body):
@@ -116,24 +163,30 @@ def send_marketing_email(subject, body):
             else:
                 failed += 1
                 current_app.logger.warning(
-                    "Marketing email delivery failed for user %s.", user.id
+                    "Marketing email delivery failed for user %s.",
+                    user.id,
                 )
         except EmailDeliveryError:
             failed += 1
             current_app.logger.exception(
-                "Marketing email delivery failed for user %s.", user.id
+                "Marketing email delivery failed for user %s.",
+                user.id,
             )
 
     return {"sent": sent, "failed": failed}
 
+
 def request_verification_email(email):
-    """Resend verification email with a persistent 60-second cooldown."""
+    """Resend a verification email with a persistent 60-second cooldown."""
     email = (email or "").strip().lower()
 
     try:
         user = db.session.scalar(
-            select(User).where(User.email == email).with_for_update()
+            select(User)
+            .where(User.email == email)
+            .with_for_update()
         )
+
         if user is None or not user.is_active or user.email_verified:
             db.session.rollback()
             return "unavailable"
@@ -147,13 +200,18 @@ def request_verification_email(email):
             else:
                 last_sent = last_sent.astimezone(timezone.utc)
 
-            if (now - last_sent).total_seconds() < 60:
+            if now - last_sent < VERIFICATION_COOLDOWN:
                 db.session.rollback()
                 return "cooldown"
 
         user_id = user.id
         token = generate_verification_token(user)
-        link = url_for("auth.verify_email", token=token, _external=True)
+        verification_url = url_for(
+            "auth.verify_email",
+            token=token,
+            _external=True,
+        )
+
         user.verification_email_sent_at = now
         db.session.commit()
 
@@ -165,7 +223,7 @@ def request_verification_email(email):
         ) from error
 
     try:
-        send_verification_email(user, link)
+        send_verification_email(user, verification_url)
     except Exception as error:
         try:
             db.session.execute(
