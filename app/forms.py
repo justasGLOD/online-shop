@@ -143,3 +143,14 @@ class MarketingPreferencesForm(FlaskForm):
         "I agree to receive promotional emails (optional)"
     )
     submit = SubmitField("Save preferences")
+
+class MarketingCampaignForm(FlaskForm):
+    subject = StringField("Email subject", validators=[
+        DataRequired(message="Please enter an email subject."),
+        Length(min=3, max=200, message="Subject must contain 3–200 characters."),
+    ])
+    message = TextAreaField("Email message", validators=[
+        DataRequired(message="Please enter an email message."),
+        Length(min=10, max=5000, message="Message must contain 10–5000 characters."),
+    ])
+    submit = SubmitField("Send marketing email")

@@ -24,12 +24,15 @@
                 <p>You are logged in.</p>
 
                 {% if current_user.is_admin %}
+                    <h3>Administration</h3>
+                    <p><a href="{{ url_for('admin.dashboard') }}">Admin dashboard</a></p>
                     <p><a href="{{ url_for('admin.products') }}">Admin product management</a></p>
+                    <p><a href="{{ url_for('admin.marketing_campaign') }}">Marketing campaigns</a></p>
                 {% endif %}
 
                 <p><a href="{{ url_for('cart.view_cart') }}">View shopping cart</a></p>
                 <p><a href="{{ url_for('balance.overview') }}">My balance and transactions</a></p>
-                <p><a href="{{ url_for('orders.history') }}">My Order History</a></p>
+                <p><a href="{{ url_for('orders.history') }}">My order history</a></p>
                 <p><a href="{{ url_for('auth.email_preferences') }}">Manage email preferences</a></p>
 
                 {% if not current_user.email_verified %}
