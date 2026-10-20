@@ -89,24 +89,41 @@ def send_verification_email(user, verification_url):
     )
     return _deliver_email(user.email, "Verify your Online Shop email", body)
 
-
 def send_marketing_email(subject, body):
-    """Send promotional mail only to active, verified, opted-in users."""
-    users = db.session.scalars(
-        select(User).where(
-            User.is_active.is_(True),
-            User.email_verified.is_(True),
-            User.marketing_opt_in.is_(True),
-        )
-    ).all()
+    """Send promotional emails only to eligible customers."""
+    subject, body = (subject or "").strip(), (body or "").strip()
+    if not subject or not body:
+        raise EmailDeliveryError("Subject and message are required.")
+
+    try:
+        users = db.session.scalars(
+            select(User).where(
+                User.is_active.is_(True),
+                User.email_verified.is_(True),
+                User.marketing_opt_in.is_(True),
+            )
+        ).all()
+    except SQLAlchemyError as error:
+        db.session.rollback()
+        current_app.logger.exception("Could not load marketing recipients.")
+        raise EmailDeliveryError("Could not load campaign recipients.") from error
 
     sent = failed = 0
     for user in users:
         try:
             if _deliver_email(user.email, subject, body):
                 sent += 1
+            else:
+                failed += 1
+                current_app.logger.warning(
+                    "Marketing email delivery failed for user %s.", user.id
+                )
         except EmailDeliveryError:
             failed += 1
+            current_app.logger.exception(
+                "Marketing email delivery failed for user %s.", user.id
+            )
+
     return {"sent": sent, "failed": failed}
 
 def request_verification_email(email):

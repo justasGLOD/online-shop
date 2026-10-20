@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Marketing Campaign | Online Shop</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card">
+            <h1>Marketing Campaign</h1>
+            <p>Send promotions to customers who verified their email and opted in.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+
+            <form method="POST" action="{{ url_for('admin.marketing_campaign') }}">
+                {{ form.hidden_tag() }}
+
+                <div class="form-group">
+                    {{ form.subject.label }}
+                    {{ form.subject(class_="form-control", maxlength=200) }}
+                    {% for error in form.subject.errors %}
+                        <p class="field-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+
+                <div class="form-group">
+                    {{ form.message.label }}
+                    {{ form.message(class_="form-control", rows=10, maxlength=5000) }}
+                    {% for error in form.message.errors %}
+                        <p class="field-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+
+                <p><strong>Recipients:</strong> active, verified customers who opted into marketing.</p>
+                {{ form.submit(class_="submit-button") }}
+            </form>
+
+            <p><a href="{{ url_for('admin.dashboard') }}">Admin dashboard</a></p>
+            <p><a href="{{ url_for('auth.home') }}">Return to shop</a></p>
+        </section>
+    </main>
+</body>
+</html>

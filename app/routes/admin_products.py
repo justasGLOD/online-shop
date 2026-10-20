@@ -5,6 +5,9 @@ from app.forms import (ProductActionForm, ProductEditForm, ProductForm, RestockF
 from app.services.admin_product_service import (AdminProductError, AdminProductNotFoundError, create_admin_product, deactivate_admin_product, get_admin_product_details, list_admin_products, restock_admin_product, update_admin_product,)
 from app.services.admin_user_service import (AdminUserError, AdminUserNotFoundError, deactivate_admin_user, list_admin_users,)
 from app.services.admin_dashboard_service import (AdminDashboardError, get_admin_dashboard_data,)
+from app.extensions import db
+from app.forms import MarketingCampaignForm
+from app.services.email_service import EmailDeliveryError, send_marketing_email
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -253,3 +256,32 @@ def deactivate_product(product_id):
         flash("The product could not be removed from sale.", "error")
 
     return redirect(url_for("admin.products"))
+
+@admin_bp.route("/marketing", methods=["GET", "POST"])
+@admin_required
+def marketing_campaign():
+    """Allow administrators to send promotional email campaigns."""
+    form = MarketingCampaignForm()
+
+    if form.validate_on_submit():
+        try:
+            result = send_marketing_email(
+                form.subject.data.strip(),
+                form.message.data.strip(),
+            )
+            flash(
+                f"Campaign finished. Sent: {result['sent']}; "
+                f"failed: {result['failed']}.",
+                "success" if result["failed"] == 0 else "error",
+            )
+            return redirect(url_for("admin.marketing_campaign"))
+
+        except EmailDeliveryError as error:
+            db.session.rollback()
+            flash(str(error), "error")
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Unexpected marketing campaign error.")
+            flash("The campaign could not be processed. Please try again.", "error")
+
+    return render_template("admin/marketing_campaign.html", form=form)
