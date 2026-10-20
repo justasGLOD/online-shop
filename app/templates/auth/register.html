@@ -3,27 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>Create Account | Online Shop</title>
-
-    <link
-        rel="stylesheet"
-        href="{{ url_for('static', filename='css/style.css') }}"
-    >
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <main class="registration-container">
         <section class="registration-card">
             <h1>Create your account</h1>
-            <p class="subtitle">
-                Register to start shopping.
-            </p>
+            <p class="subtitle">Register to start shopping.</p>
 
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% for category, message in messages %}
-                    <div class="message {{ category }}" role="alert">
-                        {{ message }}
-                    </div>
+                    <div class="message {{ category }}" role="alert">{{ message }}</div>
                 {% endfor %}
             {% endwith %}
 
@@ -32,11 +23,7 @@
 
                 <div class="form-group">
                     {{ form.username.label }}
-                    {{ form.username(
-                        class_="form-control",
-                        autocomplete="username"
-                    ) }}
-
+                    {{ form.username(class_="form-control", autocomplete="username") }}
                     {% for error in form.username.errors %}
                         <p class="field-error">{{ error }}</p>
                     {% endfor %}
@@ -44,11 +31,7 @@
 
                 <div class="form-group">
                     {{ form.email.label }}
-                    {{ form.email(
-                        class_="form-control",
-                        autocomplete="email"
-                    ) }}
-
+                    {{ form.email(class_="form-control", autocomplete="email") }}
                     {% for error in form.email.errors %}
                         <p class="field-error">{{ error }}</p>
                     {% endfor %}
@@ -56,29 +39,28 @@
 
                 <div class="form-group">
                     {{ form.password.label }}
-                    {{ form.password(
-                        class_="form-control",
-                        autocomplete="new-password"
-                    ) }}
-
+                    {{ form.password(class_="form-control", autocomplete="new-password") }}
                     {% for error in form.password.errors %}
                         <p class="field-error">{{ error }}</p>
                     {% endfor %}
-
-                    <small>
-                        Use 8–128 characters with uppercase and lowercase
-                        letters, a number and a special character.
-                    </small>
+                    <small>Use 8–128 characters with uppercase and lowercase letters, a number and a special character.</small>
                 </div>
 
                 <div class="form-group">
                     {{ form.confirm_password.label }}
-                    {{ form.confirm_password(
-                        class_="form-control",
-                        autocomplete="new-password"
-                    ) }}
-
+                    {{ form.confirm_password(class_="form-control", autocomplete="new-password") }}
                     {% for error in form.confirm_password.errors %}
+                        <p class="field-error">{{ error }}</p>
+                    {% endfor %}
+                </div>
+
+                <div class="form-group">
+                    <label for="{{ form.marketing_opt_in.id }}">
+                        {{ form.marketing_opt_in() }}
+                        {{ form.marketing_opt_in.label.text }}
+                    </label>
+                    <small>This is optional. Leave it unchecked if you don't want promotional emails.</small>
+                    {% for error in form.marketing_opt_in.errors %}
                         <p class="field-error">{{ error }}</p>
                     {% endfor %}
                 </div>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Email Preferences | Online Shop</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <main class="registration-container">
+        <section class="registration-card">
+            <h1>Email preferences</h1>
+            <p class="subtitle">Choose whether you want promotional emails.</p>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% for category, message in messages %}
+                    <div class="message {{ category }}" role="alert">{{ message }}</div>
+                {% endfor %}
+            {% endwith %}
+
+            <form method="POST">
+                {{ form.hidden_tag() }}
+                <div class="form-group">
+                    <label for="{{ form.marketing_opt_in.id }}">
+                        {{ form.marketing_opt_in() }}
+                        {{ form.marketing_opt_in.label.text }}
+                    </label>
+                    <small>You can change this preference at any time.</small>
+                </div>
+                {{ form.submit(class_="submit-button") }}
+            </form>
+
+            <p><a href="{{ url_for('auth.home') }}">Back to home</a></p>
+        </section>
+    </main>
+</body>
+</html>

@@ -1,12 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Online Shop</title>
-    <link rel="stylesheet"
-          href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <main class="registration-container">
@@ -15,47 +13,28 @@
 
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% for category, message in messages %}
-                    <div class="message {{ category }}" role="alert">
-                        {{ message }}
-                    </div>
+                    <div class="message {{ category }}" role="alert">{{ message }}</div>
                 {% endfor %}
             {% endwith %}
 
-            <p>
-                <a href="{{ url_for('products.catalogue') }}">
-                    Browse products
-                </a>
-            </p>
+            <p><a href="{{ url_for('products.catalogue') }}">Browse products</a></p>
 
             {% if current_user.is_authenticated %}
                 <h2>Welcome, {{ current_user.username }}!</h2>
                 <p>You are logged in.</p>
 
                 {% if current_user.is_admin %}
-                    <p>
-                        <a href="{{ url_for('admin.products') }}">
-                            Admin product management
-                        </a>
-                    </p>
+                    <p><a href="{{ url_for('admin.products') }}">Admin product management</a></p>
                 {% endif %}
 
-                <p>
-                    <a href="{{ url_for('cart.view_cart') }}">
-                        View shopping cart
-                    </a>
-                </p>
+                <p><a href="{{ url_for('cart.view_cart') }}">View shopping cart</a></p>
+                <p><a href="{{ url_for('balance.overview') }}">My balance and transactions</a></p>
+                <p><a href="{{ url_for('orders.history') }}">My Order History</a></p>
+                <p><a href="{{ url_for('auth.email_preferences') }}">Manage email preferences</a></p>
 
-                <p>
-                    <a href="{{ url_for('balance.overview') }}">
-                        My balance and transactions
-                    </a>
-                </p>
-
-                <p>
-                    <a href="{{ url_for('orders.history') }}">
-                        My Order History
-                    </a>
-                </p>
+                {% if not current_user.email_verified %}
+                    <p><a href="{{ url_for('auth.resend_verification') }}">Resend verification email</a></p>
+                {% endif %}
 
                 <form method="POST" action="{{ url_for('auth.logout') }}">
                     {{ logout_form.hidden_tag() }}
@@ -63,14 +42,9 @@
                 </form>
             {% else %}
                 <p>Log in or create an account to start shopping.</p>
-                <p>
-                    <a href="{{ url_for('auth.login') }}">Log in</a>
-                </p>
-                <p>
-                    <a href="{{ url_for('auth.register') }}">
-                        Create an account
-                    </a>
-                </p>
+                <p><a href="{{ url_for('auth.login') }}">Log in</a></p>
+                <p><a href="{{ url_for('auth.register') }}">Create an account</a></p>
+                <p><a href="{{ url_for('auth.resend_verification') }}">Resend verification email</a></p>
             {% endif %}
         </section>
     </main>
