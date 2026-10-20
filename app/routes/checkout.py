@@ -11,24 +11,16 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app.forms import CheckoutForm
-from app.services.cart_service import (
+from ..forms import CheckoutForm
+from ..services.cart_service import (
     CartError,
     calculate_cart_total,
     get_user_cart,
 )
-from app.services.checkout_service import (
-    CheckoutError,
-    EmptyCartError,
-    checkout_cart,
-)
+from ..services.checkout_service import CheckoutError, checkout_cart
 
 
-checkout_bp = Blueprint(
-    "checkout",
-    __name__,
-    url_prefix="/checkout",
-)
+checkout_bp = Blueprint("checkout", __name__, url_prefix="/checkout")
 
 
 @checkout_bp.route("/", methods=["GET", "POST"])
@@ -46,11 +38,6 @@ def checkout_page():
                 f"Total: €{order.total_price:.2f}",
                 "success",
             )
-
-            return redirect(url_for("cart.view_cart"))
-
-        except EmptyCartError as error:
-            flash(str(error), "error")
             return redirect(url_for("cart.view_cart"))
 
         except CheckoutError as error:
@@ -63,8 +50,7 @@ def checkout_page():
                 current_user.id,
             )
             flash(
-                "Your purchase could not be completed. "
-                "Please try again.",
+                "Your purchase could not be completed. Please try again.",
                 "error",
             )
             return redirect(url_for("cart.view_cart"))

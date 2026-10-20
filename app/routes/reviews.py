@@ -1,39 +1,38 @@
 
-from flask import Blueprint, abort, current_app, flash, redirect, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    url_for,
+)
 from flask_login import current_user, login_required
 
-from app.forms import ReviewForm
-from app.services.review_service import (
+from ..forms import ReviewForm
+from ..services.review_service import (
     ReviewError,
     ReviewProductNotFoundError,
     submit_product_review,
 )
 
 
-reviews_bp = Blueprint(
-    "reviews",
-    __name__,
-    url_prefix="/products",
-)
+reviews_bp = Blueprint("reviews", __name__, url_prefix="/products")
 
 
-@reviews_bp.route(
-    "/<int:product_id>/reviews",
-    methods=["POST"],
-)
+@reviews_bp.route("/<int:product_id>/reviews", methods=["POST"])
 @login_required
 def submit_review(product_id):
     """Submit a product review for an authenticated customer."""
     form = ReviewForm()
+    product_url = url_for("products.detail", product_id=product_id)
 
     if not form.validate_on_submit():
         flash(
             "Please provide a rating from 1 to 5 and a valid review.",
             "error",
         )
-        return redirect(
-            url_for("products.detail", product_id=product_id)
-        )
+        return redirect(product_url)
 
     try:
         submit_product_review(
@@ -42,7 +41,6 @@ def submit_review(product_id):
             rating=form.rating.data,
             comment=form.comment.data,
         )
-
         flash("Your review was submitted successfully.", "success")
 
     except ReviewProductNotFoundError:
@@ -61,4 +59,4 @@ def submit_review(product_id):
             "error",
         )
 
-    return redirect(url_for("products.detail", product_id=product_id))
+    return redirect(product_url)

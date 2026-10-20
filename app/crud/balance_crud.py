@@ -1,8 +1,8 @@
 
 from sqlalchemy import select
 
-from app.extensions import db
-from app.models import BalanceTransaction, User
+from ..extensions import db
+from ..models import BalanceTransaction, User
 
 
 def get_user_by_id(user_id):
@@ -20,7 +20,6 @@ def get_balance_transactions(user_id):
             BalanceTransaction.id.desc(),
         )
     )
-
     return db.session.scalars(statement).all()
 
 
@@ -28,5 +27,4 @@ def create_balance_transaction(transaction):
     """Add a transaction without committing the entire session."""
     db.session.add(transaction)
     db.session.flush()
-
     return transaction

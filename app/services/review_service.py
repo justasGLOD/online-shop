@@ -3,8 +3,8 @@ from flask import current_app
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.extensions import db
-from app.models import Order, OrderItem, Product, Review
+from ..extensions import db
+from ..models import Order, OrderItem, Product, Review
 
 
 class ReviewError(Exception):
@@ -16,7 +16,7 @@ class ReviewProductNotFoundError(ReviewError):
 
 
 class ReviewPurchaseRequiredError(ReviewError):
-    """Raised when a customer has not purchased the product."""
+    """Raised when the customer has not purchased the product."""
 
 
 class ReviewAlreadyExistsError(ReviewError):
@@ -39,15 +39,12 @@ def has_purchased_product(user_id, product_id):
         )
         .limit(1)
     )
-
     return db.session.scalar(statement) is not None
 
 
 def get_product_reviews(product_id):
     """Return a product's reviews, newest first."""
-    product = db.session.get(Product, product_id)
-
-    if product is None:
+    if db.session.get(Product, product_id) is None:
         raise ReviewProductNotFoundError(
             "This product could not be found."
         )
@@ -55,12 +52,8 @@ def get_product_reviews(product_id):
     statement = (
         select(Review)
         .where(Review.product_id == product_id)
-        .order_by(
-            Review.created_at.desc(),
-            Review.id.desc(),
-        )
+        .order_by(Review.created_at.desc(), Review.id.desc())
     )
-
     return db.session.scalars(statement).all()
 
 
@@ -76,21 +69,16 @@ def submit_product_review(user_id, product_id, rating, comment):
         )
 
     if not isinstance(comment, str):
-        raise InvalidReviewError(
-            "Please write a review."
-        )
+        raise InvalidReviewError("Please write a review.")
 
     comment = comment.strip()
-
     if not 3 <= len(comment) <= 2000:
         raise InvalidReviewError(
             "Your review must contain between 3 and 2000 characters."
         )
 
     try:
-        product = db.session.get(Product, product_id)
-
-        if product is None:
+        if db.session.get(Product, product_id) is None:
             raise ReviewProductNotFoundError(
                 "This product could not be found."
             )
@@ -108,7 +96,6 @@ def submit_product_review(user_id, product_id, rating, comment):
             )
             .limit(1)
         )
-
         if existing_review is not None:
             raise ReviewAlreadyExistsError(
                 "You have already reviewed this product."
@@ -120,10 +107,8 @@ def submit_product_review(user_id, product_id, rating, comment):
             rating=rating,
             comment=comment,
         )
-
         db.session.add(review)
         db.session.commit()
-
         return review
 
     except ReviewError:
@@ -132,17 +117,15 @@ def submit_product_review(user_id, product_id, rating, comment):
 
     except SQLAlchemyError as error:
         db.session.rollback()
-
         current_app.logger.exception(
-            "Database error while submitting a review "
-            "for product %s by user %s.",
+            "Database error submitting a review for product %s by user %s.",
             product_id,
             user_id,
         )
-
         raise ReviewError(
             "Your review could not be saved. Please try again."
         ) from error
+
 
 def get_user_review(user_id, product_id):
     """Return this user's existing review for a product, if any."""
@@ -154,5 +137,4 @@ def get_user_review(user_id, product_id):
         )
         .limit(1)
     )
-
     return db.session.scalar(statement)

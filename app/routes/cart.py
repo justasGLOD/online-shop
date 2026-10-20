@@ -10,8 +10,8 @@ from flask import (
 )
 from flask_login import current_user, login_required
 
-from app.forms import CartActionForm, CartQuantityForm
-from app.services.cart_service import (
+from ..forms import CartActionForm, CartQuantityForm
+from ..services.cart_service import (
     CartError,
     CartItemNotFoundError,
     add_product_to_cart,
@@ -52,10 +52,7 @@ def view_cart():
 
     except Exception:
         current_app.logger.exception("Unexpected error loading cart.")
-        flash(
-            "Your cart could not be loaded. Please try again.",
-            "error",
-        )
+        flash("Your cart could not be loaded. Please try again.", "error")
         return redirect(url_for("products.catalogue"))
 
 
@@ -66,10 +63,7 @@ def add(product_id):
     form = CartQuantityForm()
 
     if not form.validate_on_submit():
-        flash(
-            "Enter a valid quantity greater than zero.",
-            "error",
-        )
+        flash("Enter a valid quantity greater than zero.", "error")
         return redirect(url_for("products.catalogue"))
 
     try:
@@ -78,7 +72,6 @@ def add(product_id):
             product_id=product_id,
             quantity=form.quantity.data,
         )
-
         flash("Product added to your cart.", "success")
         return redirect(url_for("cart.view_cart"))
 
@@ -88,10 +81,7 @@ def add(product_id):
 
     except Exception:
         current_app.logger.exception("Unexpected error adding to cart.")
-        flash(
-            "The product could not be added to your cart.",
-            "error",
-        )
+        flash("The product could not be added to your cart.", "error")
         return redirect(url_for("products.catalogue"))
 
 
@@ -111,7 +101,6 @@ def update(item_id):
             item_id=item_id,
             quantity=form.quantity.data,
         )
-
         flash("Cart quantity updated.", "success")
 
     except CartItemNotFoundError:
@@ -141,7 +130,6 @@ def remove(item_id):
             user_id=current_user.id,
             item_id=item_id,
         )
-
         flash("Product removed from your cart.", "success")
 
     except CartItemNotFoundError:

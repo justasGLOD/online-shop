@@ -1,9 +1,11 @@
+
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import SQLAlchemyError
 
-from app.extensions import db
-from app.models import Order
+from ..extensions import db
+from ..models import Order
 
 
 CENT = Decimal("0.01")
@@ -13,7 +15,7 @@ TEN_PERCENT = Decimal("10.00")
 
 
 class LoyaltyDiscountError(Exception):
-    """Expected error when calculating customer loyalty discounts."""
+    """Raised when loyalty eligibility or discount calculation fails."""
 
 
 def get_loyalty_discount_percent(completed_order_count):
@@ -38,24 +40,18 @@ def get_loyalty_discount_percent(completed_order_count):
 
 def get_completed_order_count(user_id):
     """Count a customer's completed orders."""
-    if (
-        not isinstance(user_id, int)
-        or isinstance(user_id, bool)
-        or user_id < 1
-    ):
+    if not isinstance(user_id, int) or isinstance(user_id, bool) or user_id < 1:
         raise LoyaltyDiscountError("Invalid customer ID.")
 
+    statement = select(func.count(Order.id)).where(
+        Order.user_id == user_id,
+        Order.status == "completed",
+    )
+
     try:
-        statement = select(func.count(Order.id)).where(
-            Order.user_id == user_id,
-            Order.status == "completed",
-        )
-
         return int(db.session.scalar(statement) or 0)
-
-    except Exception as error:
+    except SQLAlchemyError as error:
         db.session.rollback()
-
         raise LoyaltyDiscountError(
             "Customer loyalty eligibility could not be checked."
         ) from error
@@ -85,12 +81,10 @@ def apply_loyalty_discount(amount, discount_percent):
             "Loyalty discount must be between 0% and 100%."
         )
 
-    multiplier = (
-        Decimal("100.00") - discount_percent
-    ) / Decimal("100.00")
-
-    final_amount = (
-        amount * multiplier
-    ).quantize(CENT, rounding=ROUND_HALF_UP)
+    multiplier = (Decimal("100.00") - discount_percent) / Decimal("100.00")
+    final_amount = (amount * multiplier).quantize(
+        CENT,
+        rounding=ROUND_HALF_UP,
+    )
 
     return max(ZERO, final_amount)

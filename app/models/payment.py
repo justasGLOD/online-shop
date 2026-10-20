@@ -1,7 +1,7 @@
 
 from datetime import datetime, timezone
 
-from app.extensions import db
+from ..extensions import db
 
 
 class Payment(db.Model):
@@ -9,6 +9,7 @@ class Payment(db.Model):
 
     __tablename__ = "payments"
 
+    # Payment and customer details
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer,
@@ -27,6 +28,8 @@ class Payment(db.Model):
         nullable=False,
         default="pending",
     )
+
+    # Stripe identifiers
     stripe_checkout_session_id = db.Column(
         db.String(255),
         unique=True,
@@ -37,6 +40,8 @@ class Payment(db.Model):
         unique=True,
         nullable=True,
     )
+
+    # Payment timestamps
     created_at = db.Column(
         db.DateTime(timezone=True),
         nullable=False,

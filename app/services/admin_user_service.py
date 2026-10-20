@@ -2,16 +2,16 @@
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.crud.user_crud import (
+from ..crud.user_crud import (
     deactivate_user,
     get_all_users,
     get_user_for_admin,
 )
-from app.extensions import db
+from ..extensions import db
 
 
 class AdminUserError(Exception):
-    """Expected error during user administration."""
+    """Raised when user administration fails."""
 
 
 class AdminUserNotFoundError(AdminUserError):
@@ -19,23 +19,20 @@ class AdminUserNotFoundError(AdminUserError):
 
 
 def _normalize_user_id(value):
-    """Return a valid positive user ID, or None for invalid input."""
+    """Return a positive user ID, or None if the value is invalid."""
     if isinstance(value, bool):
         return None
 
     try:
         user_id = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
-    if user_id < 1:
-        return None
-
-    return user_id
+    return user_id if user_id > 0 else None
 
 
 def list_admin_users():
-    """Return all registered users for the admin management page."""
+    """Return registered users for the admin management page."""
     try:
         return get_all_users()
 
@@ -50,28 +47,20 @@ def list_admin_users():
 
 
 def deactivate_admin_user(user_id, acting_admin_id):
-    """Deactivate an ordinary customer without deleting their records."""
-
+    """Deactivate a customer without deleting their records."""
     target_id = _normalize_user_id(user_id)
     admin_id = _normalize_user_id(acting_admin_id)
 
     if target_id is None:
-        raise AdminUserNotFoundError(
-            "The requested user was not found."
-        )
+        raise AdminUserNotFoundError("The requested user was not found.")
 
     if admin_id is None:
-        raise AdminUserError(
-            "Administrator authorization is required."
-        )
+        raise AdminUserError("Administrator authorization is required.")
 
     if target_id == admin_id:
-        raise AdminUserError(
-            "You cannot deactivate your own account."
-        )
+        raise AdminUserError("You cannot deactivate your own account.")
 
     try:
-        # Verify the acting account is an active administrator.
         acting_admin = get_user_for_admin(admin_id)
 
         if (
@@ -83,7 +72,6 @@ def deactivate_admin_user(user_id, acting_admin_id):
                 "Administrator authorization is required."
             )
 
-        # Find the target account.
         user = get_user_for_admin(target_id)
 
         if user is None:
@@ -97,11 +85,9 @@ def deactivate_admin_user(user_id, acting_admin_id):
             )
 
         if not user.is_active:
-            raise AdminUserError(
-                "This account is already inactive."
-            )
+            raise AdminUserError("This account is already inactive.")
 
-        # Changes is_active only; orders and transactions remain stored.
+        # Preserve orders and transaction history.
         return deactivate_user(user)
 
     except AdminUserError:

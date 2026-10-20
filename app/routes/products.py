@@ -11,15 +11,15 @@ from flask import (
 )
 from flask_login import current_user
 
-from app.forms import CartQuantityForm, ReviewForm
-from app.services.product_service import (
+from ..forms import CartQuantityForm, ReviewForm
+from ..services.product_service import (
     ALLOWED_SORT_OPTIONS,
     ProductCatalogueError,
     ProductNotFoundError,
     get_product_details,
     list_products,
 )
-from app.services.review_service import (
+from ..services.review_service import (
     get_product_reviews,
     get_user_review,
     has_purchased_product,
@@ -41,7 +41,6 @@ def catalogue():
 
     try:
         products = list_products(sort_by)
-
     except ProductCatalogueError:
         flash(
             "We couldn't load the products. Please try again.",
@@ -62,12 +61,11 @@ def catalogue():
 
 @products_bp.route("/<int:product_id>")
 def detail(product_id):
-    """Display product details, ratings, reviews and available actions."""
+    """Display product details, ratings, reviews, and available actions."""
     try:
         product, average_rating, review_count = get_product_details(
             product_id
         )
-
         reviews = get_product_reviews(product.id)
 
         can_review = False
@@ -78,7 +76,6 @@ def detail(product_id):
                 current_user.id,
                 product.id,
             )
-
             existing_review = get_user_review(
                 current_user.id,
                 product.id,

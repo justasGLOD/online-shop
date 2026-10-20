@@ -1,17 +1,16 @@
 
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import stripe
 from flask import current_app
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.extensions import db
-from app.models import Payment, User
-from datetime import datetime, timezone
-from sqlalchemy import select, update
-from app.models import BalanceTransaction, Payment, User
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from ..extensions import db
+from ..models import BalanceTransaction, Payment, User
+
 
 CENT = Decimal("0.01")
 MIN_TOP_UP = Decimal("0.50")
@@ -33,8 +32,10 @@ class PaymentAmountError(PaymentError):
 class PaymentUserNotFoundError(PaymentError):
     """Raised when the customer cannot be found."""
 
+
 class PaymentWebhookVerificationError(PaymentError):
     """Raised when a Stripe webhook cannot be verified."""
+
 
 class PaymentProviderError(PaymentError):
     """Raised when the payment provider cannot process a request."""
@@ -60,12 +61,7 @@ def validate_payment_amount(amount):
     return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
-def create_balance_top_up_session(
-    user_id,
-    amount,
-    success_url,
-    cancel_url,
-):
+def create_balance_top_up_session(user_id, amount, success_url, cancel_url):
     """Create a pending top-up and a Stripe-hosted Checkout Session."""
     api_key = current_app.config.get("STRIPE_SECRET_KEY")
     currency = current_app.config.get("STRIPE_CURRENCY", "eur").lower()
@@ -105,7 +101,6 @@ def create_balance_top_up_session(
     except PaymentError:
         db.session.rollback()
         raise
-
     except SQLAlchemyError as error:
         db.session.rollback()
         current_app.logger.exception(
@@ -128,8 +123,11 @@ def create_balance_top_up_session(
         query = dict(parse_qsl(parts.query))
         query["payment_id"] = str(payment.id)
         cancel_url = urlunsplit((
-            parts.scheme, parts.netloc, parts.path,
-            urlencode(query), parts.fragment,
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            urlencode(query),
+            parts.fragment,
         ))
 
         session = stripe.checkout.Session.create(
@@ -187,7 +185,6 @@ def create_balance_top_up_session(
     try:
         payment.stripe_checkout_session_id = session.id
         db.session.commit()
-
     except SQLAlchemyError as error:
         db.session.rollback()
         current_app.logger.exception(
@@ -204,6 +201,7 @@ def create_balance_top_up_session(
 def process_stripe_webhook(payload, signature_header):
     """Verify a Stripe event and credit successful top-ups exactly once."""
     secret = current_app.config.get("STRIPE_WEBHOOK_SECRET")
+
     if not secret:
         raise PaymentConfigurationError(
             "Stripe webhook is not configured."
@@ -211,7 +209,9 @@ def process_stripe_webhook(payload, signature_header):
 
     try:
         event = stripe.Webhook.construct_event(
-            payload, signature_header, secret
+            payload,
+            signature_header,
+            secret,
         )
     except ValueError as error:
         raise PaymentWebhookVerificationError(
@@ -222,8 +222,7 @@ def process_stripe_webhook(payload, signature_header):
             "Invalid Stripe webhook signature."
         ) from error
 
-    # Stripe SDK v15+ objects are not regular dictionaries.
-    # to_dict() recursively converts nested Stripe objects too.
+    # Convert Stripe SDK objects into regular dictionaries.
     if not isinstance(event, dict):
         event = event.to_dict()
 
@@ -240,6 +239,7 @@ def process_stripe_webhook(payload, signature_header):
 
     data = event.get("data")
     session = data.get("object") if data else None
+
     if not session:
         raise PaymentWebhookVerificationError(
             "Stripe webhook has no Checkout Session."
@@ -247,10 +247,9 @@ def process_stripe_webhook(payload, signature_header):
 
     session_id = session.get("id")
     metadata = session.get("metadata") or {}
-    payment_id = metadata.get("payment_id")
 
     try:
-        payment_id = int(payment_id)
+        payment_id = int(metadata.get("payment_id"))
     except (TypeError, ValueError) as error:
         raise PaymentWebhookVerificationError(
             "The payment reference is invalid."
@@ -271,7 +270,7 @@ def process_stripe_webhook(payload, signature_header):
             db.session.rollback()
             return "ignored"
 
-        # Match the event to the exact stored payment.
+        # Match the incoming event to the stored payment.
         if (
             not session_id
             or metadata.get("user_id") != str(payment.user_id)
@@ -289,17 +288,15 @@ def process_stripe_webhook(payload, signature_header):
         if (
             session.get("mode") != "payment"
             or session.get("amount_total") != expected_cents
-            or (
-                (session.get("currency") or "").lower()
-                != payment.currency.lower()
-            )
+            or (session.get("currency") or "").lower()
+            != payment.currency.lower()
         ):
             raise PaymentWebhookVerificationError(
                 "Stripe payment amount or currency does not match."
             )
 
-        # A completed Checkout Session must also be marked as paid.
         if event_type in success_events:
+            # A completed session must have a confirmed payment.
             if session.get("payment_status") != "paid":
                 db.session.rollback()
                 return "pending"
@@ -338,8 +335,7 @@ def process_stripe_webhook(payload, signature_header):
                 else intent.get("id") if intent else None
             )
 
-            # Atomically transition pending -> paid.
-            # Only the request that updates one row may credit the balance.
+            # Only the request that changes pending -> paid can credit funds.
             result = db.session.execute(
                 update(Payment)
                 .where(
@@ -368,7 +364,7 @@ def process_stripe_webhook(payload, signature_header):
                 )
             )
 
-            # Payment status, balance and history commit together.
+            # Save the payment state, balance, and history together.
             db.session.commit()
             return "paid"
 
@@ -391,15 +387,12 @@ def process_stripe_webhook(payload, signature_header):
 
         db.session.commit()
         return (
-            new_status
-            if result.rowcount == 1
-            else "already_processed"
+            new_status if result.rowcount == 1 else "already_processed"
         )
 
     except PaymentError:
         db.session.rollback()
         raise
-
     except SQLAlchemyError as error:
         db.session.rollback()
         current_app.logger.exception(
@@ -408,7 +401,6 @@ def process_stripe_webhook(payload, signature_header):
         raise PaymentError(
             "Payment confirmation could not be saved. Please retry."
         ) from error
-
     except Exception as error:
         db.session.rollback()
         current_app.logger.exception(
@@ -418,9 +410,11 @@ def process_stripe_webhook(payload, signature_header):
             "Payment confirmation could not be processed."
         ) from error
 
+
 def cancel_balance_top_up(payment_id, user_id):
     """Expire a pending Stripe session before marking it cancelled."""
     api_key = current_app.config.get("STRIPE_SECRET_KEY")
+
     if not api_key:
         raise PaymentConfigurationError("Stripe is not configured.")
 
@@ -431,6 +425,7 @@ def cancel_balance_top_up(payment_id, user_id):
                 Payment.user_id == user_id,
             )
         )
+
         if payment is None:
             raise PaymentError("Payment could not be found.")
 
@@ -443,14 +438,16 @@ def cancel_balance_top_up(payment_id, user_id):
         db.session.rollback()
 
         if not session_id:
-            raise PaymentProviderError("The Checkout Session is unavailable.")
+            raise PaymentProviderError(
+                "The Checkout Session is unavailable."
+            )
 
         stripe.api_key = api_key
 
         try:
             session = stripe.checkout.Session.expire(session_id)
         except Exception as expire_error:
-            # Expiration fails if the customer has already completed checkout.
+            # Expiry can fail if the customer has already completed checkout.
             try:
                 session = stripe.checkout.Session.retrieve(session_id)
             except Exception as retrieve_error:
@@ -459,7 +456,9 @@ def cancel_balance_top_up(payment_id, user_id):
                 ) from retrieve_error
 
             if session.status == "complete":
-                return "pending"  # The signed webhook decides the final status.
+                # The signed webhook determines the final payment status.
+                return "pending"
+
             if session.status != "expired":
                 raise PaymentProviderError(
                     "Stripe could not confirm cancellation."
@@ -480,6 +479,7 @@ def cancel_balance_top_up(payment_id, user_id):
             .values(status="cancelled"),
             execution_options={"synchronize_session": False},
         )
+
         db.session.commit()
         return "cancelled" if result.rowcount == 1 else "already_processed"
 
@@ -488,8 +488,13 @@ def cancel_balance_top_up(payment_id, user_id):
         raise
     except SQLAlchemyError as error:
         db.session.rollback()
-        current_app.logger.exception("Failed to cancel payment %s.", payment_id)
-        raise PaymentError("The payment status could not be saved.") from error
+        current_app.logger.exception(
+            "Failed to cancel payment %s.",
+            payment_id,
+        )
+        raise PaymentError(
+            "The payment status could not be saved."
+        ) from error
     except Exception as error:
         db.session.rollback()
         current_app.logger.exception("Stripe cancellation failed.")

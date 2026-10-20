@@ -4,4 +4,4 @@ from .cart import Cart, CartItem
 from .order import Order, OrderItem
 from .review import Review
 from .transaction import BalanceTransaction
-from app.models.payment import Payment
+from .payment import Payment

@@ -1,11 +1,12 @@
+
 from flask import Flask
 
 from config import Config
-from .extensions import db, migrate, login_manager
+from .extensions import db, login_manager, migrate
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Load a user from the database for Flask-Login."""
+    """Load a logged-in user from the database."""
     from .models import User
 
     try:
@@ -13,8 +14,8 @@ def load_user(user_id):
     except (TypeError, ValueError):
         return None
 
-
 def create_app(config_class=Config):
+    """Create and configure the Flask application."""
     app = Flask(__name__)
     app.config.from_object(config_class)
 
@@ -22,10 +23,10 @@ def create_app(config_class=Config):
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
-    # Register models for SQLAlchemy and Flask-Migrate.
+    # Import models so SQLAlchemy and Flask-Migrate can discover them.
     from . import models
 
-    # Register application blueprints.
+    # Import the application's route blueprints.
     from .routes.auth import auth_bp
     from .routes.products import products_bp
     from .routes.admin_products import admin_bp
@@ -36,14 +37,18 @@ def create_app(config_class=Config):
     from .routes.orders import orders_bp
     from .routes.payments import payments_bp
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(products_bp)
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(cart_bp)
-    app.register_blueprint(checkout_bp)
-    app.register_blueprint(balance_bp)
-    app.register_blueprint(reviews_bp)
-    app.register_blueprint(orders_bp)
-    app.register_blueprint(payments_bp)
-    
+    # Register every blueprint with the application.
+    for blueprint in (
+        auth_bp,
+        products_bp,
+        admin_bp,
+        cart_bp,
+        checkout_bp,
+        balance_bp,
+        reviews_bp,
+        orders_bp,
+        payments_bp,
+    ):
+        app.register_blueprint(blueprint)
+
     return app

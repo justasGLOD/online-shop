@@ -1,18 +1,18 @@
+
 from flask import current_app
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.crud.order_crud import get_orders_for_user
-from app.extensions import db
-from app.models import Order
+from ..crud.order_crud import get_orders_for_user
+from ..extensions import db
+from ..models import Order
 
 
 class OrderHistoryError(Exception):
-    """Base exception for order history errors."""
+    """Raised when order history cannot be retrieved."""
 
 
 def get_user_order_history(user_id: int) -> list[Order]:
-    """Fetch order history for a valid user."""
-
+    """Fetch order history for a valid user ID."""
     if (
         isinstance(user_id, bool)
         or not isinstance(user_id, int)
@@ -25,12 +25,10 @@ def get_user_order_history(user_id: int) -> list[Order]:
 
     except SQLAlchemyError as error:
         db.session.rollback()
-
         current_app.logger.exception(
-            "Failed to retrieve order history for user %s",
+            "Failed to retrieve order history for user %s.",
             user_id,
         )
-
         raise OrderHistoryError(
             "Unable to load your order history."
         ) from error

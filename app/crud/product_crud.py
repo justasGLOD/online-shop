@@ -1,9 +1,8 @@
 
 from sqlalchemy import func, select
 
-from app.extensions import db
-from app.models import Product, Review
-
+from ..extensions import db
+from ..models import Product, Review
 
 
 def get_active_products(sort_by="newest"):
@@ -11,7 +10,7 @@ def get_active_products(sort_by="newest"):
     average_rating = func.coalesce(func.avg(Review.rating), 0.0)
     review_count = func.count(Review.id)
 
-    # Sort by the final price customers see, rounded to cents.
+    # Sort by the discounted price customers actually pay.
     discounted_price = func.round(
         Product.price
         * (100 - func.coalesce(Product.discount_percent, 0))
@@ -29,11 +28,6 @@ def get_active_products(sort_by="newest"):
         "name_desc": func.lower(Product.name).desc(),
     }
 
-    sort_order = sort_options.get(
-        sort_by,
-        sort_options["newest"],
-    )
-
     statement = (
         select(
             Product,
@@ -43,16 +37,14 @@ def get_active_products(sort_by="newest"):
         .outerjoin(Review, Review.product_id == Product.id)
         .where(Product.is_active.is_(True))
         .group_by(Product.id)
-        .order_by(sort_order, Product.id.asc())
+        .order_by(sort_options.get(sort_by, sort_options["newest"]), Product.id.asc())
     )
 
     return db.session.execute(statement).all()
 
 
-
 def get_active_product_by_id(product_id):
     """Return one active product with its rating information."""
-
     average_rating = func.coalesce(func.avg(Review.rating), 0.0)
     review_count = func.count(Review.id)
 
@@ -75,28 +67,24 @@ def get_active_product_by_id(product_id):
 
 def get_all_products():
     """Return all products, including inactive products."""
-
     statement = select(Product).order_by(Product.name.asc())
     return db.session.scalars(statement).all()
 
 
 def get_product_for_admin(product_id):
     """Find any product by ID, including inactive products."""
-
     return db.session.get(Product, product_id)
 
 
 def create_product(product):
     """Insert a new product into the database."""
-
     db.session.add(product)
     db.session.commit()
     return product
 
 
 def update_product_details(product, name, description, price):
-    """Update editable fields without changing stock or active status."""
-
+    """Update product details without changing stock or active status."""
     product.name = name
     product.description = description
     product.price = price
@@ -107,7 +95,6 @@ def update_product_details(product, name, description, price):
 
 def increase_product_stock(product, quantity):
     """Increase the stock of an existing product."""
-
     product.stock += quantity
     db.session.commit()
     return product
@@ -115,7 +102,6 @@ def increase_product_stock(product, quantity):
 
 def deactivate_product(product):
     """Remove a product from sale without deleting its history."""
-
     product.is_active = False
     db.session.commit()
     return product
