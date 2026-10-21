@@ -7,7 +7,16 @@ from werkzeug.security import generate_password_hash
 
 from app import create_app
 from app.extensions import db
-from app.models import BalanceTransaction, Order, Product, User
+from app.models import (
+    BalanceTransaction,
+    Cart,
+    CartItem,
+    Order,
+    Payment,
+    Product,
+    Review,
+    User,
+)
 
 
 class TestConfig:
@@ -884,3 +893,265 @@ def test_admin_cannot_edit_product_with_invalid_discount(
         assert product.price == Decimal("19.99")
         assert product.discount_percent == Decimal("0.00")
         assert product.stock == 5
+
+# -----------------------------------------
+# KAN-25: ADMIN USER DELETION TESTS
+# -----------------------------------------
+
+
+def test_admin_can_delete_customer_and_preserve_history(
+    app,
+    client,
+    accounts,
+    sample_product,
+):
+    """Delete the account while preserving financial records."""
+    with app.app_context():
+        customer = db.session.scalar(
+            select(User).where(User.username == "regularuser")
+        )
+
+        order = Order(
+            user_id=customer.id,
+            total_price=Decimal("25.00"),
+            status="completed",
+        )
+        transaction = BalanceTransaction(
+            user_id=customer.id,
+            amount=Decimal("-25.00"),
+            transaction_type="purchase",
+        )
+        payment = Payment(
+            user_id=customer.id,
+            amount=Decimal("10.00"),
+            currency="eur",
+            status="paid",
+        )
+        cart = Cart(user_id=customer.id)
+
+        db.session.add(cart)
+        db.session.flush()
+
+        cart_item = CartItem(
+            cart_id=cart.id,
+            product_id=sample_product,
+            quantity=1,
+        )
+        review = Review(
+            user_id=customer.id,
+            product_id=sample_product,
+            rating=5,
+            comment="Excellent product.",
+        )
+
+        db.session.add_all([
+            order,
+            transaction,
+            payment,
+            cart_item,
+            review,
+        ])
+        db.session.commit()
+
+        customer_id = customer.id
+        order_id = order.id
+        transaction_id = transaction.id
+        payment_id = payment.id
+        cart_id = cart.id
+        review_id = review.id
+
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        f"/admin/users/{customer_id}/delete",
+        data={},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"Account for regularuser deleted successfully." in response.data
+
+    with app.app_context():
+        assert db.session.get(User, customer_id) is None
+
+        saved_order = db.session.get(Order, order_id)
+        assert saved_order is not None
+        assert saved_order.user_id is None
+
+        saved_transaction = db.session.get(
+            BalanceTransaction,
+            transaction_id,
+        )
+        assert saved_transaction is not None
+        assert saved_transaction.user_id is None
+
+        saved_payment = db.session.get(Payment, payment_id)
+        assert saved_payment is not None
+        assert saved_payment.user_id is None
+        assert saved_payment.status == "paid"
+
+        assert db.session.get(Cart, cart_id) is None
+        assert db.session.get(Review, review_id) is None
+
+
+def test_admin_cannot_delete_own_account(
+    app,
+    client,
+    accounts,
+):
+    with app.app_context():
+        admin = db.session.scalar(
+            select(User).where(User.username == accounts["admin_username"])
+        )
+        admin_id = admin.id
+
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        f"/admin/users/{admin_id}/delete",
+        data={},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"You cannot delete your own account." in response.data
+
+    with app.app_context():
+        assert db.session.get(User, admin_id) is not None
+
+
+def test_admin_cannot_delete_another_admin(
+    app,
+    client,
+    accounts,
+):
+    with app.app_context():
+        other_admin = User(
+            username="otherdeleteadmin",
+            email="otherdeleteadmin@example.com",
+            password_hash=generate_password_hash("OtherAdminPass123!"),
+            is_admin=True,
+        )
+        db.session.add(other_admin)
+        db.session.commit()
+        other_admin_id = other_admin.id
+
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        f"/admin/users/{other_admin_id}/delete",
+        data={},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"Administrator accounts cannot be deleted here." in response.data
+
+    with app.app_context():
+        assert db.session.get(User, other_admin_id) is not None
+
+
+def test_admin_cannot_delete_customer_with_pending_payment(
+    app,
+    client,
+    accounts,
+):
+    with app.app_context():
+        customer = db.session.scalar(
+            select(User).where(User.username == "regularuser")
+        )
+
+        payment = Payment(
+            user_id=customer.id,
+            amount=Decimal("20.00"),
+            currency="eur",
+            status="pending",
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+        customer_id = customer.id
+        payment_id = payment.id
+
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        f"/admin/users/{customer_id}/delete",
+        data={},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"pending payment" in response.data.lower()
+
+    with app.app_context():
+        assert db.session.get(User, customer_id) is not None
+
+        saved_payment = db.session.get(Payment, payment_id)
+        assert saved_payment is not None
+        assert saved_payment.status == "pending"
+        assert saved_payment.user_id == customer_id
+
+
+def test_regular_user_cannot_delete_customer(
+    app,
+    client,
+    accounts,
+):
+    with app.app_context():
+        customer = db.session.scalar(
+            select(User).where(
+                User.username == accounts["regular_username"]
+            )
+        )
+        customer_id = customer.id
+
+    login_as(
+        client,
+        accounts["regular_username"],
+        accounts["regular_password"],
+    )
+
+    response = client.post(
+        f"/admin/users/{customer_id}/delete",
+        data={},
+    )
+
+    assert response.status_code == 403
+
+    with app.app_context():
+        assert db.session.get(User, customer_id) is not None
+
+
+def test_deleting_missing_customer_returns_404(
+    client,
+    accounts,
+):
+    login_as(
+        client,
+        accounts["admin_username"],
+        accounts["admin_password"],
+    )
+
+    response = client.post(
+        "/admin/users/999999/delete",
+        data={},
+    )
+
+    assert response.status_code == 404

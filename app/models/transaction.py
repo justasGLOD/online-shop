@@ -12,8 +12,8 @@ class BalanceTransaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey("users.id"),
-        nullable=False,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
     )
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     transaction_type = db.Column(db.String(30), nullable=False)
