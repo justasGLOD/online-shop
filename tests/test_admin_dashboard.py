@@ -1,11 +1,13 @@
 from decimal import Decimal
+from datetime import datetime
 
 import pytest
 from werkzeug.security import generate_password_hash
 
 from app import create_app
 from app.extensions import db
-from app.models import Order, Product, User
+from sqlalchemy import select
+from app.models import Order, OrderItem, Product, Review, User
 from app.services.admin_dashboard_service import get_admin_dashboard_data
 
 
@@ -190,6 +192,7 @@ def test_admin_dashboard_displays_statistics(
     assert "€40.00".encode("utf-8") in response.data
 
 
+
 def test_empty_database_returns_zero_statistics(app):
     with app.app_context():
         stats = get_admin_dashboard_data()
@@ -204,8 +207,11 @@ def test_empty_database_returns_zero_statistics(app):
             "total_orders": 0,
             "completed_orders": 0,
             "total_revenue": Decimal("0.00"),
+            "daily_sales": [],
+            "monthly_revenue": [],
+            "top_revenue_month": None,
+            "best_rated_products": [],
         }
-
 
 def test_admin_dashboard_navigation_links_are_available(
     client,
@@ -225,3 +231,202 @@ def test_admin_dashboard_navigation_links_are_available(
 
     assert b"Dashboard" in products_response.data
     assert b"Dashboard" in users_response.data
+
+def test_dashboard_calculates_daily_monthly_sales_and_product_ratings(
+    app,
+    accounts,
+):
+    """Calculate sales trends and rank products by their customer ratings."""
+    with app.app_context():
+        customer_id = accounts["customer_id"]
+        admin_id = db.session.scalar(
+            select(User.id).where(
+                User.username == accounts["admin_username"]
+            )
+        )
+
+        best_product = Product(
+            name="Top Rated Widget",
+            price=Decimal("50.00"),
+            stock=10,
+            is_active=True,
+        )
+        second_product = Product(
+            name="Runner Up Gadget",
+            price=Decimal("25.00"),
+            stock=10,
+            is_active=True,
+        )
+        third_product = Product(
+            name="Budget Item",
+            price=Decimal("20.00"),
+            stock=10,
+            is_active=True,
+        )
+        db.session.add_all([
+            best_product,
+            second_product,
+            third_product,
+        ])
+        db.session.flush()
+
+        # Two completed orders on the same day.
+        january_order_one = Order(
+            user_id=customer_id,
+            total_price=Decimal("100.00"),
+            status="completed",
+            created_at=datetime(2026, 1, 5, 10, 0),
+        )
+        january_order_two = Order(
+            user_id=customer_id,
+            total_price=Decimal("25.00"),
+            status="completed",
+            created_at=datetime(2026, 1, 5, 15, 0),
+        )
+        february_order = Order(
+            user_id=customer_id,
+            total_price=Decimal("40.00"),
+            status="completed",
+            created_at=datetime(2026, 2, 2, 12, 0),
+        )
+
+        # This order must not contribute to completed sales or revenue.
+        pending_order = Order(
+            user_id=customer_id,
+            total_price=Decimal("900.00"),
+            status="pending",
+            created_at=datetime(2026, 1, 6, 12, 0),
+        )
+
+        db.session.add_all([
+            january_order_one,
+            january_order_two,
+            february_order,
+            pending_order,
+        ])
+        db.session.flush()
+
+        db.session.add_all([
+            OrderItem(
+                order_id=january_order_one.id,
+                product_id=best_product.id,
+                quantity=2,
+                price_at_purchase=Decimal("50.00"),
+            ),
+            OrderItem(
+                order_id=january_order_two.id,
+                product_id=second_product.id,
+                quantity=1,
+                price_at_purchase=Decimal("25.00"),
+            ),
+            OrderItem(
+                order_id=february_order.id,
+                product_id=third_product.id,
+                quantity=2,
+                price_at_purchase=Decimal("20.00"),
+            ),
+            OrderItem(
+                order_id=pending_order.id,
+                product_id=best_product.id,
+                quantity=10,
+                price_at_purchase=Decimal("90.00"),
+            ),
+        ])
+
+        # The first product averages 5 stars; the second averages 4.5.
+        db.session.add_all([
+            Review(
+                user_id=admin_id,
+                product_id=best_product.id,
+                rating=5,
+                comment="Excellent product!",
+            ),
+            Review(
+                user_id=customer_id,
+                product_id=best_product.id,
+                rating=5,
+                comment="Really good!",
+            ),
+            Review(
+                user_id=admin_id,
+                product_id=second_product.id,
+                rating=4,
+                comment="Good product.",
+            ),
+            Review(
+                user_id=customer_id,
+                product_id=second_product.id,
+                rating=5,
+                comment="Very good!",
+            ),
+            Review(
+                user_id=customer_id,
+                product_id=third_product.id,
+                rating=3,
+                comment="It is okay.",
+            ),
+        ])
+
+        db.session.commit()
+
+        stats = get_admin_dashboard_data()
+
+        # The pending order is counted in total orders, but not in sales.
+        assert stats["total_orders"] == 4
+        assert stats["completed_orders"] == 3
+        assert stats["total_revenue"] == Decimal("165.00")
+
+        # Daily sales are ordered newest first.
+        assert stats["daily_sales"] == [
+            {
+                "date": "2026-02-02",
+                "items_sold": 2,
+                "order_count": 1,
+                "revenue": Decimal("40.00"),
+            },
+            {
+                "date": "2026-01-05",
+                "items_sold": 3,
+                "order_count": 2,
+                "revenue": Decimal("125.00"),
+            },
+        ]
+
+        # Monthly revenue is also ordered newest first.
+        assert stats["monthly_revenue"] == [
+            {
+                "month": "2026-02",
+                "order_count": 1,
+                "revenue": Decimal("40.00"),
+            },
+            {
+                "month": "2026-01",
+                "order_count": 2,
+                "revenue": Decimal("125.00"),
+            },
+        ]
+
+        assert stats["top_revenue_month"] == {
+            "month": "2026-01",
+            "order_count": 2,
+            "revenue": Decimal("125.00"),
+        }
+
+        # Products are ranked by average rating, with review counts included.
+        assert stats["best_rated_products"] == [
+            {
+                "name": "Top Rated Widget",
+                "average_rating": 5.0,
+                "review_count": 2,
+            },
+            {
+                "name": "Runner Up Gadget",
+                "average_rating": 4.5,
+                "review_count": 2,
+            },
+            {
+                "name": "Budget Item",
+                "average_rating": 3.0,
+                "review_count": 1,
+            },
+        ]
