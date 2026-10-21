@@ -31,27 +31,148 @@
             {% if stats is not none %}
                 <h2>Products</h2>
                 <article class="product-item">
-                    <p>Total products: <strong>{{ stats.total_products }}</strong></p>
-                    <p>Active products: <strong>{{ stats.active_products }}</strong></p>
-                    <p>Inactive products: <strong>{{ stats.inactive_products }}</strong></p>
+                    <p>Total products:
+                        <strong>{{ stats.total_products }}</strong>
+                    </p>
+                    <p>Active products:
+                        <strong>{{ stats.active_products }}</strong>
+                    </p>
+                    <p>Inactive products:
+                        <strong>{{ stats.inactive_products }}</strong>
+                    </p>
                 </article>
 
                 <h2>Customers and accounts</h2>
                 <article class="product-item">
-                    <p>Total registered users: <strong>{{ stats.total_users }}</strong></p>
-                    <p>Active accounts: <strong>{{ stats.active_users }}</strong></p>
-                    <p>Inactive accounts: <strong>{{ stats.inactive_users }}</strong></p>
+                    <p>Total registered users:
+                        <strong>{{ stats.total_users }}</strong>
+                    </p>
+                    <p>Active accounts:
+                        <strong>{{ stats.active_users }}</strong>
+                    </p>
+                    <p>Inactive accounts:
+                        <strong>{{ stats.inactive_users }}</strong>
+                    </p>
                 </article>
 
                 <h2>Orders and revenue</h2>
                 <article class="product-item">
-                    <p>Total orders: <strong>{{ stats.total_orders }}</strong></p>
-                    <p>Completed orders: <strong>{{ stats.completed_orders }}</strong></p>
-                    <p>
-                        Completed-order revenue:
+                    <p>Total orders:
+                        <strong>{{ stats.total_orders }}</strong>
+                    </p>
+                    <p>Completed orders:
+                        <strong>{{ stats.completed_orders }}</strong>
+                    </p>
+                    <p>Completed-order revenue:
                         <strong>€{{ "%.2f"|format(stats.total_revenue) }}</strong>
                     </p>
                 </article>
+
+                <h2>Daily sales</h2>
+                {% if stats.daily_sales %}
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Orders</th>
+                                    <th>Units sold</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for day in stats.daily_sales %}
+                                    <tr>
+                                        <td>{{ day.date }}</td>
+                                        <td>{{ day.order_count }}</td>
+                                        <td>{{ day.items_sold }}</td>
+                                        <td>€{{ "%.2f"|format(day.revenue) }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p>No completed sales recorded yet.</p>
+                {% endif %}
+
+                <h2>Monthly revenue</h2>
+
+                {% if stats.top_revenue_month %}
+                    <article class="product-item">
+                        <p>Highest-revenue month:
+                            <strong>{{ stats.top_revenue_month.month }}</strong>
+                        </p>
+                        <p>Revenue:
+                            <strong>
+                                €{{ "%.2f"|format(stats.top_revenue_month.revenue) }}
+                            </strong>
+                        </p>
+                        <p>Completed orders:
+                            <strong>
+                                {{ stats.top_revenue_month.order_count }}
+                            </strong>
+                        </p>
+                    </article>
+                {% endif %}
+
+                {% if stats.monthly_revenue %}
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Completed orders</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for month in stats.monthly_revenue %}
+                                    <tr>
+                                        <td>{{ month.month }}</td>
+                                        <td>{{ month.order_count }}</td>
+                                        <td>
+                                            €{{ "%.2f"|format(month.revenue) }}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p>No monthly revenue data is available yet.</p>
+                {% endif %}
+
+                <h2>Best-rated products</h2>
+
+                {% if stats.best_rated_products %}
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Average rating</th>
+                                    <th>Number of reviews</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for product in stats.best_rated_products %}
+                                    <tr>
+                                        <td>{{ product.name }}</td>
+                                        <td>
+                                            {{ "%.2f"|format(product.average_rating) }}
+                                            / 5 ★
+                                        </td>
+                                        <td>{{ product.review_count }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p>No product reviews are available yet.</p>
+                {% endif %}
+
             {% else %}
                 <p>
                     Dashboard statistics are temporarily unavailable.
