@@ -6,6 +6,7 @@ from sqlalchemy import false
 
 from ..extensions import db
 
+
 class User(UserMixin, db.Model):
     """Database model for registered shop users."""
 
@@ -68,11 +69,13 @@ class User(UserMixin, db.Model):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+
+    # Keep financial history when the customer account is deleted.
     balance_transactions = db.relationship(
         "BalanceTransaction",
         back_populates="user",
-        cascade="all, delete-orphan",
     )
+    payments = db.relationship("Payment", back_populates="user")
 
     def __repr__(self):
         return f"<User {self.username}>"

@@ -9,12 +9,11 @@ class Payment(db.Model):
 
     __tablename__ = "payments"
 
-    # Payment and customer details
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey("users.id"),
-        nullable=False,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     amount = db.Column(db.Numeric(10, 2), nullable=False)
@@ -49,7 +48,7 @@ class Payment(db.Model):
     )
     paid_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
-    user = db.relationship("User")
+    user = db.relationship("User", back_populates="payments")
 
     __table_args__ = (
         db.CheckConstraint(

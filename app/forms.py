@@ -304,3 +304,8 @@ class MarketingCampaignForm(FlaskForm):
         ],
     )
     submit = SubmitField("Send marketing email")
+
+class UserDeleteForm(FlaskForm):
+    """Protect account deletion with form and CSRF validation."""
+
+    submit = SubmitField("Delete account")

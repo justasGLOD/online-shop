@@ -58,3 +58,8 @@ def deactivate_user(user):
     user.is_active = False
     db.session.commit()
     return user
+
+def delete_user(user):
+    """Delete a user account and commit the database transaction."""
+    db.session.delete(user)
+    db.session.commit()

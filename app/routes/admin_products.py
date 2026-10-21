@@ -21,6 +21,7 @@ from ..forms import (
     ProductForm,
     RestockForm,
     UserActionForm,
+    UserDeleteForm,
 )
 from ..services.admin_dashboard_service import (
     AdminDashboardError,
@@ -40,6 +41,7 @@ from ..services.admin_user_service import (
     AdminUserError,
     AdminUserNotFoundError,
     deactivate_admin_user,
+    delete_admin_user,
     list_admin_users,
 )
 from ..services.email_service import EmailDeliveryError, send_marketing_email
@@ -135,23 +137,28 @@ def users():
     """Display registered users to administrators."""
     try:
         users_list = list_admin_users()
+
     except AdminUserError as error:
         current_app.logger.warning(
             "Unable to display users: %s",
             error,
         )
         flash(str(error), "error")
+
         return render_template(
             "admin/users.html",
             users=[],
             action_form=UserActionForm(),
+            delete_form=UserDeleteForm(),
         ), 503
 
     return render_template(
         "admin/users.html",
         users=users_list,
         action_form=UserActionForm(),
+        delete_form=UserDeleteForm(),
     )
+
 
 
 @admin_bp.route("/users/<int:user_id>/deactivate", methods=["POST"])
@@ -169,10 +176,13 @@ def deactivate_customer(user_id):
             f"Account for {user.username} deactivated successfully.",
             "success",
         )
+
     except AdminUserNotFoundError:
         abort(404)
+
     except AdminUserError as error:
         flash(str(error), "error")
+
     except Exception:
         current_app.logger.exception(
             "Unexpected error deactivating user %s.",
@@ -185,6 +195,39 @@ def deactivate_customer(user_id):
 
     return redirect(url_for("admin.users"))
 
+@admin_bp.route("/users/<int:user_id>/delete", methods=["POST"])
+@admin_required
+def delete_customer(user_id):
+    """Permanently delete a customer account."""
+    form = UserDeleteForm()
+
+    if not form.validate_on_submit():
+        abort(400)
+
+    try:
+        username = delete_admin_user(user_id, current_user.id)
+        flash(
+            f"Account for {username} deleted successfully.",
+            "success",
+        )
+
+    except AdminUserNotFoundError:
+        abort(404)
+
+    except AdminUserError as error:
+        flash(str(error), "error")
+
+    except Exception:
+        current_app.logger.exception(
+            "Unexpected error deleting user %s.",
+            user_id,
+        )
+        flash(
+            "The account could not be deleted. Please try again.",
+            "error",
+        )
+
+    return redirect(url_for("admin.users"))
 
 @admin_bp.route("/products/new", methods=["GET", "POST"])
 @admin_required
@@ -214,7 +257,6 @@ def create_product():
             )
 
     return render_template("admin/product_form.html", form=form)
-
 
 @admin_bp.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
 @admin_required
@@ -262,7 +304,6 @@ def edit_product(product_id):
         form=form,
     )
 
-
 @admin_bp.route(
     "/products/<int:product_id>/restock",
     methods=["GET", "POST"],
@@ -298,7 +339,6 @@ def restock_product(product_id):
         form=form,
     )
 
-
 @admin_bp.route(
     "/products/<int:product_id>/deactivate",
     methods=["POST"],
@@ -325,7 +365,6 @@ def deactivate_product(product_id):
         flash("The product could not be removed from sale.", "error")
 
     return redirect(url_for("admin.products"))
-
 
 @admin_bp.route("/marketing", methods=["GET", "POST"])
 @admin_required
