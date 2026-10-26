@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,6 +28,7 @@
                     form.name,
                     form.description,
                     form.price,
+                    form.cost_price,
                     form.discount_percent,
                     form.stock
                 ] %}
@@ -41,6 +41,18 @@
                                 step="0.01",
                                 min="0.01"
                             ) }}
+
+                        {% elif field.name == "cost_price" %}
+                            {{ field(
+                                class_="form-control",
+                                step="0.01",
+                                min="0"
+                            ) }}
+                            <small>
+                                Enter the shop's purchase cost for this
+                                product. Leave blank if the cost is unknown.
+                            </small>
+
                         {% elif field.name == "discount_percent" %}
                             {{ field(
                                 class_="form-control",
@@ -52,8 +64,10 @@
                                 Enter a discount from 0% to 100%.
                                 Use 0 for no discount.
                             </small>
+
                         {% elif field.name == "description" %}
                             {{ field(class_="form-control", rows="5") }}
+
                         {% else %}
                             {{ field(class_="form-control") }}
                         {% endif %}

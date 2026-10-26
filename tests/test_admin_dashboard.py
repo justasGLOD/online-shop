@@ -207,9 +207,15 @@ def test_empty_database_returns_zero_statistics(app):
             "total_orders": 0,
             "completed_orders": 0,
             "total_revenue": Decimal("0.00"),
+            "total_cost": Decimal("0.00"),
+            "total_gross_profit": Decimal("0.00"),
+            "orders_with_known_cost": 0,
+            "orders_missing_cost": 0,
             "daily_sales": [],
             "monthly_revenue": [],
             "top_revenue_month": None,
+            "monthly_profit": [],
+            "top_profit_month": None,
             "best_rated_products": [],
         }
 
@@ -430,3 +436,226 @@ def test_dashboard_calculates_daily_monthly_sales_and_product_ratings(
                 "review_count": 1,
             },
         ]
+def test_dashboard_calculates_monthly_costs_and_gross_profit(
+    app,
+    accounts,
+):
+    """Calculate monthly gross profit using historical item costs."""
+    with app.app_context():
+        customer_id = accounts["customer_id"]
+
+        january_product = Product(
+            name="January Product",
+            price=Decimal("50.00"),
+            cost_price=Decimal("35.00"),
+            stock=10,
+        )
+
+        february_product = Product(
+            name="February Product",
+            price=Decimal("50.00"),
+            cost_price=Decimal("40.00"),
+            stock=10,
+        )
+
+        db.session.add_all([
+            january_product,
+            february_product,
+        ])
+        db.session.flush()
+
+        january_order = Order(
+            user_id=customer_id,
+            total_price=Decimal("100.00"),
+            status="completed",
+            created_at=datetime(2026, 1, 5, 10, 0),
+        )
+
+        february_order = Order(
+            user_id=customer_id,
+            total_price=Decimal("200.00"),
+            status="completed",
+            created_at=datetime(2026, 2, 12, 10, 0),
+        )
+
+        db.session.add_all([
+            january_order,
+            february_order,
+        ])
+        db.session.flush()
+
+        db.session.add_all([
+            OrderItem(
+                order_id=january_order.id,
+                product_id=january_product.id,
+                quantity=2,
+                price_at_purchase=Decimal("50.00"),
+                cost_at_purchase=Decimal("30.00"),
+            ),
+            OrderItem(
+                order_id=february_order.id,
+                product_id=february_product.id,
+                quantity=4,
+                price_at_purchase=Decimal("50.00"),
+                cost_at_purchase=Decimal("25.00"),
+            ),
+        ])
+
+        db.session.commit()
+
+        stats = get_admin_dashboard_data()
+
+        # Overall totals.
+        assert stats["total_revenue"] == Decimal("300.00")
+        assert stats["total_cost"] == Decimal("160.00")
+        assert stats["total_gross_profit"] == Decimal("140.00")
+
+        assert stats["orders_with_known_cost"] == 2
+        assert stats["orders_missing_cost"] == 0
+
+        # Monthly reports are ordered newest first.
+        assert stats["monthly_profit"] == [
+            {
+                "month": "2026-02",
+                "order_count": 1,
+                "revenue": Decimal("200.00"),
+                "cost": Decimal("100.00"),
+                "gross_profit": Decimal("100.00"),
+                "cost_data_complete": True,
+                "orders_with_known_cost": 1,
+                "orders_missing_cost": 0,
+            },
+            {
+                "month": "2026-01",
+                "order_count": 1,
+                "revenue": Decimal("100.00"),
+                "cost": Decimal("60.00"),
+                "gross_profit": Decimal("40.00"),
+                "cost_data_complete": True,
+                "orders_with_known_cost": 1,
+                "orders_missing_cost": 0,
+            },
+        ]
+
+        # February has the highest gross profit.
+        assert stats["top_profit_month"] == {
+            "month": "2026-02",
+            "order_count": 1,
+            "revenue": Decimal("200.00"),
+            "cost": Decimal("100.00"),
+            "gross_profit": Decimal("100.00"),
+            "cost_data_complete": True,
+            "orders_with_known_cost": 1,
+            "orders_missing_cost": 0,
+        }
+
+def test_dashboard_does_not_invent_missing_historical_costs(
+    app,
+    accounts,
+):
+    """Do not report complete profit figures when historical costs are missing."""
+    with app.app_context():
+        customer_id = accounts["customer_id"]
+
+        product = Product(
+            name="Historical Cost Test Product",
+            price=Decimal("30.00"),
+            cost_price=Decimal("15.00"),
+            stock=10,
+        )
+
+        db.session.add(product)
+        db.session.flush()
+
+        january_known_order = Order(
+            user_id=customer_id,
+            total_price=Decimal("20.00"),
+            status="completed",
+            created_at=datetime(2026, 1, 5, 10, 0),
+        )
+
+        january_unknown_order = Order(
+            user_id=customer_id,
+            total_price=Decimal("30.00"),
+            status="completed",
+            created_at=datetime(2026, 1, 10, 10, 0),
+        )
+
+        february_order = Order(
+            user_id=customer_id,
+            total_price=Decimal("100.00"),
+            status="completed",
+            created_at=datetime(2026, 2, 5, 10, 0),
+        )
+
+        db.session.add_all([
+            january_known_order,
+            january_unknown_order,
+            february_order,
+        ])
+        db.session.flush()
+
+        db.session.add_all([
+            OrderItem(
+                order_id=january_known_order.id,
+                product_id=product.id,
+                quantity=1,
+                price_at_purchase=Decimal("20.00"),
+                cost_at_purchase=Decimal("8.00"),
+            ),
+            OrderItem(
+                order_id=january_unknown_order.id,
+                product_id=product.id,
+                quantity=1,
+                price_at_purchase=Decimal("30.00"),
+                cost_at_purchase=None,
+            ),
+            OrderItem(
+                order_id=february_order.id,
+                product_id=product.id,
+                quantity=2,
+                price_at_purchase=Decimal("50.00"),
+                cost_at_purchase=Decimal("10.00"),
+            ),
+        ])
+
+        db.session.commit()
+
+        stats = get_admin_dashboard_data()
+
+        # Revenue remains available even when historical costs are missing.
+        assert stats["total_revenue"] == Decimal("150.00")
+
+        # Overall profit must not be calculated using incomplete cost data.
+        assert stats["total_cost"] is None
+        assert stats["total_gross_profit"] is None
+
+        assert stats["orders_with_known_cost"] == 2
+        assert stats["orders_missing_cost"] == 1
+
+        january = next(
+            month
+            for month in stats["monthly_profit"]
+            if month["month"] == "2026-01"
+        )
+
+        assert january["revenue"] == Decimal("50.00")
+        assert january["cost"] is None
+        assert january["gross_profit"] is None
+        assert january["cost_data_complete"] is False
+        assert january["orders_with_known_cost"] == 1
+        assert january["orders_missing_cost"] == 1
+
+        february = next(
+            month
+            for month in stats["monthly_profit"]
+            if month["month"] == "2026-02"
+        )
+
+        assert february["revenue"] == Decimal("100.00")
+        assert february["cost"] == Decimal("20.00")
+        assert february["gross_profit"] == Decimal("80.00")
+        assert february["cost_data_complete"] is True
+
+        # One incomplete month means a global winner cannot be confirmed.
+        assert stats["top_profit_month"] is None

@@ -41,7 +41,7 @@ class InsufficientBalanceError(CheckoutError):
 
 
 def checkout_cart(user_id):
-    """Complete a purchase atomically with product and loyalty discounts."""
+    """Complete a purchase and record historical product costs."""
     try:
         user = db.session.scalar(
             select(User)
@@ -50,7 +50,9 @@ def checkout_cart(user_id):
             .execution_options(populate_existing=True)
         )
         if user is None:
-            raise CheckoutUserNotFoundError("Your account could not be found.")
+            raise CheckoutUserNotFoundError(
+                "Your account could not be found."
+            )
 
         cart = db.session.scalar(
             select(Cart)
@@ -62,7 +64,7 @@ def checkout_cart(user_id):
 
         purchase_lines = []
 
-        # Validate all products before changing stock or balance.
+        # Validate every item before changing stock or balance.
         for item in cart.items:
             product = db.session.scalar(
                 select(Product)
@@ -70,6 +72,7 @@ def checkout_cart(user_id):
                 .with_for_update()
                 .execution_options(populate_existing=True)
             )
+
             if product is None or not product.is_active:
                 raise CheckoutProductUnavailableError(
                     "A product in your cart is no longer available. "
@@ -81,7 +84,9 @@ def checkout_cart(user_id):
                 or isinstance(item.quantity, bool)
                 or item.quantity < 1
             ):
-                raise CheckoutError("Your cart contains an invalid quantity.")
+                raise CheckoutError(
+                    "Your cart contains an invalid quantity."
+                )
 
             try:
                 original_price = Decimal(str(product.price))
@@ -89,9 +94,16 @@ def checkout_cart(user_id):
                     str(product.discount_percent or Decimal("0.00"))
                 )
                 price = Decimal(str(product.discounted_price))
+
+                # Capture cost now; unknown historical costs remain None.
+                cost_price = (
+                    None
+                    if product.cost_price is None
+                    else Decimal(str(product.cost_price))
+                )
             except (InvalidOperation, TypeError, ValueError) as error:
                 raise CheckoutError(
-                    "A product has an invalid price or discount."
+                    "A product has an invalid price, discount, or cost."
                 ) from error
 
             if not original_price.is_finite() or original_price <= 0:
@@ -109,13 +121,21 @@ def checkout_cart(user_id):
                     "A product has an invalid discounted price."
                 )
 
+            if cost_price is not None and (
+                not cost_price.is_finite()
+                or cost_price < Decimal("0.00")
+            ):
+                raise CheckoutError("A product has an invalid cost price.")
+
             if item.quantity > product.stock:
                 raise InsufficientStockError(
                     f"Not enough stock for {product.name}. "
                     f"Available quantity: {product.stock}."
                 )
 
-            purchase_lines.append((product, item.quantity, price))
+            purchase_lines.append(
+                (product, item.quantity, price, cost_price)
+            )
 
         # Determine loyalty eligibility before creating the new order.
         order_count = get_completed_order_count(user.id)
@@ -124,13 +144,15 @@ def checkout_cart(user_id):
         total = Decimal("0.00")
         final_lines = []
 
-        # Apply loyalty savings to prices already discounted by the product.
-        for product, quantity, product_price in purchase_lines:
+        # Apply loyalty discounts to the discounted selling price.
+        for product, quantity, product_price, cost_price in purchase_lines:
             final_price = apply_loyalty_discount(
                 product_price,
                 loyalty_percent,
             )
-            final_lines.append((product, quantity, final_price))
+            final_lines.append(
+                (product, quantity, final_price, cost_price)
+            )
             total += final_price * quantity
 
         balance = Decimal(str(user.balance))
@@ -140,18 +162,23 @@ def checkout_cart(user_id):
                 f"but your balance is €{balance:.2f}."
             )
 
-        order = Order(user_id=user.id, total_price=total, status="completed")
+        order = Order(
+            user_id=user.id,
+            total_price=total,
+            status="completed",
+        )
         db.session.add(order)
         db.session.flush()
 
-        # Record the final per-unit price actually charged.
-        for product, quantity, price in final_lines:
+        # Save the selling price and unit cost as they were at purchase.
+        for product, quantity, price, cost_price in final_lines:
             db.session.add(
                 OrderItem(
                     order_id=order.id,
                     product_id=product.id,
                     quantity=quantity,
                     price_at_purchase=price,
+                    cost_at_purchase=cost_price,
                 )
             )
             product.stock -= quantity
@@ -168,7 +195,7 @@ def checkout_cart(user_id):
         for item in list(cart.items):
             db.session.delete(item)
 
-        # Save the order, balance change, stock updates, and cart clearing together.
+        # Save the order, costs, balance, stock, and cart changes together.
         db.session.commit()
         return order
 
@@ -183,7 +210,8 @@ def checkout_cart(user_id):
     except SQLAlchemyError as error:
         db.session.rollback()
         current_app.logger.exception(
-            "Database error during checkout for user %s.", user_id
+            "Database error during checkout for user %s.",
+            user_id,
         )
         raise CheckoutError(
             "Your purchase could not be completed. "
@@ -193,7 +221,8 @@ def checkout_cart(user_id):
     except Exception as error:
         db.session.rollback()
         current_app.logger.exception(
-            "Unexpected error during checkout for user %s.", user_id
+            "Unexpected error during checkout for user %s.",
+            user_id,
         )
         raise CheckoutError(
             "An unexpected error prevented checkout. Please try again."
