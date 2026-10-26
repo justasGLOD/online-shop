@@ -5,7 +5,11 @@ import pytest
 from app import create_app
 from app.extensions import db
 from app.models import User
-from app.services.email_service import EmailDeliveryError, generate_verification_token
+from app.services.email_service import (
+    EmailDeliveryError,
+    generate_verification_token,
+    send_verification_email,
+)
 from werkzeug.security import generate_password_hash
 
 class EmailTestConfig:
@@ -272,3 +276,48 @@ def test_registration_clears_cooldown_when_email_delivery_fails(
         ).one()
         assert user.email_verified is False
         assert user.verification_email_sent_at is None
+
+def test_send_verification_email_builds_expected_message(
+    app,
+    monkeypatch,
+):
+    """Verify email content and recipient without sending a real email."""
+    sent = {}
+
+    def fake_deliver(recipient, subject, body):
+        sent["recipient"] = recipient
+        sent["subject"] = subject
+        sent["body"] = body
+        return True
+
+    monkeypatch.setattr(
+        "app.services.email_service._deliver_email",
+        fake_deliver,
+    )
+
+    with app.app_context():
+        # Configure a placeholder SMTP server to avoid the local debug
+        # branch that skips email delivery when SMTP is not configured.
+        app.config["MAIL_SERVER"] = "smtp.example.test"
+        app.config["EMAIL_VERIFICATION_TOKEN_MAX_AGE"] = 7200
+
+        user = User(
+            username="messageuser",
+            email="messageuser@example.com",
+            password_hash="test-only-unused-hash",
+        )
+
+        verification_url = (
+            "https://shop.example.test/verify-email/test-token"
+        )
+
+        result = send_verification_email(user, verification_url)
+
+    assert result is True
+    assert sent["recipient"] == "messageuser@example.com"
+    assert sent["subject"] == "Verify your Online Shop email"
+
+    assert "Hello messageuser" in sent["body"]
+    assert verification_url in sent["body"]
+    assert "120 minutes" in sent["body"]
+    assert "If you did not create this account" in sent["body"]
