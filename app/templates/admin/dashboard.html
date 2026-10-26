@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,46 +28,72 @@
             {% endwith %}
 
             {% if stats is not none %}
+
+                <!-- Product statistics -->
                 <h2>Products</h2>
+
                 <article class="product-item">
-                    <p>Total products:
+                    <p>
+                        Total products:
                         <strong>{{ stats.total_products }}</strong>
                     </p>
-                    <p>Active products:
+
+                    <p>
+                        Active products:
                         <strong>{{ stats.active_products }}</strong>
                     </p>
-                    <p>Inactive products:
+
+                    <p>
+                        Inactive products:
                         <strong>{{ stats.inactive_products }}</strong>
                     </p>
                 </article>
 
+                <!-- Customer statistics -->
                 <h2>Customers and accounts</h2>
+
                 <article class="product-item">
-                    <p>Total registered users:
+                    <p>
+                        Total registered users:
                         <strong>{{ stats.total_users }}</strong>
                     </p>
-                    <p>Active accounts:
+
+                    <p>
+                        Active accounts:
                         <strong>{{ stats.active_users }}</strong>
                     </p>
-                    <p>Inactive accounts:
+
+                    <p>
+                        Inactive accounts:
                         <strong>{{ stats.inactive_users }}</strong>
                     </p>
                 </article>
 
+                <!-- Order statistics -->
                 <h2>Orders and revenue</h2>
+
                 <article class="product-item">
-                    <p>Total orders:
+                    <p>
+                        Total orders:
                         <strong>{{ stats.total_orders }}</strong>
                     </p>
-                    <p>Completed orders:
+
+                    <p>
+                        Completed orders:
                         <strong>{{ stats.completed_orders }}</strong>
                     </p>
-                    <p>Completed-order revenue:
-                        <strong>€{{ "%.2f"|format(stats.total_revenue) }}</strong>
+
+                    <p>
+                        Completed-order revenue:
+                        <strong>
+                            €{{ "%.2f"|format(stats.total_revenue) }}
+                        </strong>
                     </p>
                 </article>
 
+                <!-- Daily sales -->
                 <h2>Daily sales</h2>
+
                 {% if stats.daily_sales %}
                     <div class="table-container">
                         <table>
@@ -80,13 +105,16 @@
                                     <th>Revenue</th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {% for day in stats.daily_sales %}
                                     <tr>
                                         <td>{{ day.date }}</td>
                                         <td>{{ day.order_count }}</td>
                                         <td>{{ day.items_sold }}</td>
-                                        <td>€{{ "%.2f"|format(day.revenue) }}</td>
+                                        <td>
+                                            €{{ "%.2f"|format(day.revenue) }}
+                                        </td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -96,19 +124,29 @@
                     <p>No completed sales recorded yet.</p>
                 {% endif %}
 
+                <!-- Monthly revenue -->
                 <h2>Monthly revenue</h2>
 
                 {% if stats.top_revenue_month %}
                     <article class="product-item">
-                        <p>Highest-revenue month:
-                            <strong>{{ stats.top_revenue_month.month }}</strong>
-                        </p>
-                        <p>Revenue:
+                        <p>
+                            Highest-revenue month:
                             <strong>
-                                €{{ "%.2f"|format(stats.top_revenue_month.revenue) }}
+                                {{ stats.top_revenue_month.month }}
                             </strong>
                         </p>
-                        <p>Completed orders:
+
+                        <p>
+                            Revenue:
+                            <strong>
+                                €{{ "%.2f"|format(
+                                    stats.top_revenue_month.revenue
+                                ) }}
+                            </strong>
+                        </p>
+
+                        <p>
+                            Completed orders:
                             <strong>
                                 {{ stats.top_revenue_month.order_count }}
                             </strong>
@@ -126,6 +164,7 @@
                                     <th>Revenue</th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {% for month in stats.monthly_revenue %}
                                     <tr>
@@ -143,6 +182,186 @@
                     <p>No monthly revenue data is available yet.</p>
                 {% endif %}
 
+                <!-- Overall costs and gross profit -->
+                <h2>Overall costs and gross profit</h2>
+
+                <article class="product-item">
+                    <p>
+                        Completed-order revenue:
+                        <strong>
+                            €{{ "%.2f"|format(stats.total_revenue) }}
+                        </strong>
+                    </p>
+
+                    <p>
+                        Recorded product costs:
+                        <strong>
+                            {% if stats.total_cost is not none %}
+                                €{{ "%.2f"|format(stats.total_cost) }}
+                            {% else %}
+                                Unavailable — missing cost data
+                            {% endif %}
+                        </strong>
+                    </p>
+
+                    <p>
+                        Gross profit:
+                        <strong>
+                            {% if stats.total_gross_profit is not none %}
+                                €{{ "%.2f"|format(
+                                    stats.total_gross_profit
+                                ) }}
+                            {% else %}
+                                Unavailable — missing cost data
+                            {% endif %}
+                        </strong>
+                    </p>
+
+                    <p>
+                        Orders with known product costs:
+                        <strong>
+                            {{ stats.orders_with_known_cost }}
+                        </strong>
+                    </p>
+
+                    <p>
+                        Orders missing product costs:
+                        <strong>
+                            {{ stats.orders_missing_cost }}
+                        </strong>
+                    </p>
+                </article>
+
+                {% if stats.orders_missing_cost > 0 %}
+                    <div class="message warning" role="status">
+                        Some completed orders have no recorded historical
+                        product costs. Overall product costs and gross
+                        profit are unavailable until all completed orders
+                        have known costs. No missing costs have been
+                        treated as zero.
+                    </div>
+                {% endif %}
+
+                <!-- Monthly gross profit report -->
+                <h2>Monthly profit report</h2>
+
+                <p>
+                    Gross profit is calculated as revenue minus the cost
+                    of the products sold. Other business expenses are
+                    not included.
+                </p>
+
+                {% if stats.top_profit_month %}
+                    <article class="product-item">
+                        <h3>Highest-gross-profit month</h3>
+
+                        <p>
+                            Month:
+                            <strong>
+                                {{ stats.top_profit_month.month }}
+                            </strong>
+                        </p>
+
+                        <p>
+                            Revenue:
+                            <strong>
+                                €{{ "%.2f"|format(
+                                    stats.top_profit_month.revenue
+                                ) }}
+                            </strong>
+                        </p>
+
+                        <p>
+                            Product costs:
+                            <strong>
+                                €{{ "%.2f"|format(
+                                    stats.top_profit_month.cost
+                                ) }}
+                            </strong>
+                        </p>
+
+                        <p>
+                            Gross profit:
+                            <strong>
+                                €{{ "%.2f"|format(
+                                    stats.top_profit_month.gross_profit
+                                ) }}
+                            </strong>
+                        </p>
+                    </article>
+                {% elif stats.monthly_profit %}
+                    <div class="message warning" role="status">
+                        The highest-gross-profit month cannot be determined
+                        reliably because at least one month's historical
+                        product costs are incomplete.
+                    </div>
+                {% else %}
+                    <p>
+                        No completed orders are available for the monthly
+                        profit report yet.
+                    </p>
+                {% endif %}
+
+                {% if stats.monthly_profit %}
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th>Completed orders</th>
+                                    <th>Revenue</th>
+                                    <th>Product costs</th>
+                                    <th>Gross profit</th>
+                                    <th>Cost data</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for month in stats.monthly_profit %}
+                                    <tr>
+                                        <td>{{ month.month }}</td>
+
+                                        <td>{{ month.order_count }}</td>
+
+                                        <td>
+                                            €{{ "%.2f"|format(month.revenue) }}
+                                        </td>
+
+                                        <td>
+                                            {% if month.cost_data_complete %}
+                                                €{{ "%.2f"|format(month.cost) }}
+                                            {% else %}
+                                                Unknown
+                                            {% endif %}
+                                        </td>
+
+                                        <td>
+                                            {% if month.cost_data_complete %}
+                                                €{{ "%.2f"|format(
+                                                    month.gross_profit
+                                                ) }}
+                                            {% else %}
+                                                Unknown
+                                            {% endif %}
+                                        </td>
+
+                                        <td>
+                                            {% if month.cost_data_complete %}
+                                                Complete
+                                            {% else %}
+                                                Incomplete:
+                                                {{ month.orders_missing_cost }}
+                                                order(s) missing costs
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+
+                <!-- Best-rated products -->
                 <h2>Best-rated products</h2>
 
                 {% if stats.best_rated_products %}
@@ -155,14 +374,18 @@
                                     <th>Number of reviews</th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {% for product in stats.best_rated_products %}
                                     <tr>
                                         <td>{{ product.name }}</td>
+
                                         <td>
-                                            {{ "%.2f"|format(product.average_rating) }}
-                                            / 5 ★
+                                            {{ "%.2f"|format(
+                                                product.average_rating
+                                            ) }}/5 ★
                                         </td>
+
                                         <td>{{ product.review_count }}</td>
                                     </tr>
                                 {% endfor %}

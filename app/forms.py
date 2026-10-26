@@ -125,6 +125,17 @@ class ProductForm(FlaskForm):
             ),
         ],
     )
+    cost_price = DecimalField(
+        "Cost price (€)",
+        places=2,
+        validators=[
+            Optional(),
+            NumberRange(
+                min=0,
+                message="Cost price cannot be negative.",
+            ),
+        ],
+    )
     discount_percent = DecimalField(
         "Discount (%)",
         places=2,
@@ -167,6 +178,17 @@ class ProductEditForm(FlaskForm):
             NumberRange(
                 min=0.01,
                 message="Price must be greater than zero.",
+            ),
+        ],
+    )
+    cost_price = DecimalField(
+        "Cost price (€)",
+        places=2,
+        validators=[
+            Optional(),
+            NumberRange(
+                min=0,
+                message="Cost price cannot be negative.",
             ),
         ],
     )

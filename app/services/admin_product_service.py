@@ -20,6 +20,7 @@ CENT = Decimal("0.01")
 MAX_PRICE = Decimal("99999999.99")
 MAX_DISCOUNT = Decimal("100.00")
 MAX_STOCK = 2_147_483_647
+_UNSET = object()
 
 
 class AdminProductError(Exception):
@@ -66,6 +67,36 @@ def _normalize_product_details(name, description, price):
     return name, description or None, price
 
 
+def _normalize_cost_price(value):
+    """Validate a product cost, allowing None when the cost is unknown."""
+    if value is None or (
+        isinstance(value, str) and not value.strip()
+    ):
+        return None
+
+    try:
+        cost = Decimal(str(value).strip())
+    except (InvalidOperation, TypeError, ValueError) as error:
+        raise AdminProductError(
+            "Enter a valid product cost."
+        ) from error
+
+    if not cost.is_finite():
+        raise AdminProductError("Enter a valid product cost.")
+
+    if cost < Decimal("0.00") or cost > MAX_PRICE:
+        raise AdminProductError(
+            "Cost must be between €0.00 and €99,999,999.99."
+        )
+
+    if cost.as_tuple().exponent < -2:
+        raise AdminProductError(
+            "Cost can have no more than two decimal places."
+        )
+
+    return cost.quantize(CENT)
+
+
 def _normalize_discount_percent(value):
     """Validate and normalize a product discount percentage."""
     try:
@@ -107,7 +138,7 @@ def get_admin_product_details(product_id):
     """Find a product for administration, including inactive products."""
     try:
         product_id = int(product_id)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, OverflowError) as error:
         raise AdminProductNotFoundError(
             "The requested product was not found."
         ) from error
@@ -145,18 +176,20 @@ def create_admin_product(
     price,
     stock,
     discount_percent=Decimal("0.00"),
+    cost_price=None,
 ):
-    """Validate and create a product, including its discount."""
+    """Validate and create a product, including its cost and discount."""
     name, description, price = _normalize_product_details(
         name,
         description,
         price,
     )
     discount = _normalize_discount_percent(discount_percent)
+    cost = _normalize_cost_price(cost_price)
 
     try:
         stock = int(stock)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, OverflowError) as error:
         raise AdminProductError(
             "Stock must be a whole number."
         ) from error
@@ -171,6 +204,7 @@ def create_admin_product(
         name=name,
         description=description,
         price=price,
+        cost_price=cost,
         discount_percent=discount,
         stock=stock,
         is_active=True,
@@ -192,8 +226,9 @@ def update_admin_product(
     description,
     price,
     discount_percent=None,
+    cost_price=_UNSET,
 ):
-    """Validate and update product details without changing stock."""
+    """Update product details and cost without changing stock."""
     product = get_admin_product_details(product_id)
     name, description, price = _normalize_product_details(
         name,
@@ -207,14 +242,23 @@ def update_admin_product(
         else _normalize_discount_percent(discount_percent)
     )
 
+    cost = (
+        product.cost_price
+        if cost_price is _UNSET
+        else _normalize_cost_price(cost_price)
+    )
+
     try:
         product.discount_percent = discount
+        product.cost_price = cost
+
         return update_product_details(
             product=product,
             name=name,
             description=description,
             price=price,
         )
+
     except SQLAlchemyError as error:
         db.session.rollback()
         current_app.logger.exception(
@@ -231,7 +275,7 @@ def restock_admin_product(product_id, quantity):
     try:
         product_id = int(product_id)
         quantity = int(quantity)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, OverflowError) as error:
         raise AdminProductError(
             "Product ID and quantity must be valid whole numbers."
         ) from error
@@ -276,7 +320,7 @@ def deactivate_admin_product(product_id):
     """Remove a product from sale without deleting its record."""
     try:
         product_id = int(product_id)
-    except (TypeError, ValueError) as error:
+    except (TypeError, ValueError, OverflowError) as error:
         raise AdminProductNotFoundError(
             "The requested product was not found."
         ) from error

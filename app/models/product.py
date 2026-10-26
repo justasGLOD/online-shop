@@ -6,7 +6,7 @@ from ..extensions import db
 
 
 class Product(db.Model):
-    """Store product details, pricing, stock, and reviews."""
+    """Store product details, pricing, stock, costs, and reviews."""
 
     __tablename__ = "products"
 
@@ -16,7 +16,10 @@ class Product(db.Model):
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Numeric(10, 2), nullable=False)
 
-    # Discount and inventory
+    # Nullable because existing products may not have a recorded cost yet.
+    cost_price = db.Column(db.Numeric(10, 2), nullable=True)
+
+    # Discounts and inventory
     discount_percent = db.Column(
         db.Numeric(5, 2),
         nullable=False,
@@ -38,15 +41,21 @@ class Product(db.Model):
             "discount_percent >= 0 AND discount_percent <= 100",
             name="check_product_discount_percent_range",
         ),
+        db.CheckConstraint(
+            "cost_price IS NULL OR cost_price >= 0",
+            name="check_product_cost_price_non_negative",
+        ),
     )
 
     @property
     def discounted_price(self):
-        """Calculate the final price after the discount."""
+        """Calculate the final selling price after the discount."""
         price = Decimal(str(self.price))
-        discount = Decimal(str(self.discount_percent or Decimal("0.00")))
-
+        discount = Decimal(
+            str(self.discount_percent or Decimal("0.00"))
+        )
         final_price = price * (Decimal("100") - discount) / Decimal("100")
+
         return final_price.quantize(
             Decimal("0.01"),
             rounding=ROUND_HALF_UP,

@@ -28,7 +28,7 @@ class Order(db.Model):
 
 
 class OrderItem(db.Model):
-    """Store a purchased product and its purchase-time price."""
+    """Store the sale price and historical cost of a purchased product."""
 
     __tablename__ = "order_items"
 
@@ -44,7 +44,19 @@ class OrderItem(db.Model):
         nullable=True,
     )
     quantity = db.Column(db.Integer, nullable=False)
+
+    # Final per-unit selling price, including discounts.
     price_at_purchase = db.Column(db.Numeric(10, 2), nullable=False)
+
+    # Per-unit cost when the order was placed; NULL means unknown.
+    cost_at_purchase = db.Column(db.Numeric(10, 2), nullable=True)
 
     order = db.relationship("Order", back_populates="items")
     product = db.relationship("Product", back_populates="order_items")
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "cost_at_purchase IS NULL OR cost_at_purchase >= 0",
+            name="check_order_item_cost_at_purchase_non_negative",
+        ),
+    )
