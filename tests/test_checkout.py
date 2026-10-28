@@ -435,8 +435,13 @@ def test_full_discount_checkout_is_free_but_reduces_stock(
         "expected_balance",
     ),
     [
-        (4, Decimal("12.50"), Decimal("25.00"), Decimal("75.00")),
-        (5, Decimal("11.88"), Decimal("23.76"), Decimal("76.24")),
+        # Three recent purchases: no loyalty discount.
+        (3, Decimal("12.50"), Decimal("25.00"), Decimal("75.00")),
+
+        # Four recent purchases: 5% loyalty discount.
+        (4, Decimal("11.88"), Decimal("23.76"), Decimal("76.24")),
+
+        # Ten recent purchases: 10% loyalty discount.
         (10, Decimal("11.25"), Decimal("22.50"), Decimal("77.50")),
     ],
 )
@@ -512,4 +517,33 @@ def test_checkout_stacks_product_and_loyalty_discounts(
         assert user.balance == Decimal("81.00")
         assert len(items) == 1
         assert items[0].price_at_purchase == Decimal("9.50")
+        assert items[0].quantity == 2
+
+def test_checkout_applies_loyalty_discount_for_spending(
+    app,
+    checkout_data,
+):
+    """A customer spending over €500 qualifies with fewer than 4 purchases."""
+    with app.app_context():
+        # One completed order with total spending above €500.
+        db.session.add(
+            Order(
+                user_id=checkout_data["user_id"],
+                total_price=Decimal("501.00"),
+                status="completed",
+            )
+        )
+        db.session.commit()
+
+        # Only one previous order, but spending qualifies the customer.
+        order = checkout_cart(checkout_data["user_id"])
+
+        user = db.session.get(User, checkout_data["user_id"])
+        items = get_order_items(order.id)
+
+        # €12.50 less 5% = €11.875, rounded to €11.88 per unit.
+        assert order.total_price == Decimal("23.76")
+        assert user.balance == Decimal("76.24")
+        assert len(items) == 1
+        assert items[0].price_at_purchase == Decimal("11.88")
         assert items[0].quantity == 2
