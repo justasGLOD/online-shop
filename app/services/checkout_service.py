@@ -12,6 +12,7 @@ from ..services.loyalty_service import (
     LoyaltyDiscountError,
     apply_loyalty_discount,
     get_completed_order_count,
+    get_completed_order_spending,
     get_loyalty_discount_percent,
 )
 
@@ -139,7 +140,12 @@ def checkout_cart(user_id):
 
         # Determine loyalty eligibility before creating the new order.
         order_count = get_completed_order_count(user.id)
-        loyalty_percent = get_loyalty_discount_percent(order_count)
+        completed_order_spending = get_completed_order_spending(user.id)
+
+        loyalty_percent = get_loyalty_discount_percent(
+            order_count,
+            completed_order_spending,
+        )
 
         total = Decimal("0.00")
         final_lines = []
